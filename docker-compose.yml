@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  product_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: product_service
+    ports:
+      - "8001:8001"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: python -m app.services.product_service.main
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+
+  creative_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: creative_service
+    ports:
+      - "8002:8002"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    command: python -m app.services.creative_service.main
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+
+  strategy_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: strategy_service
+    ports:
+      - "8003:8003"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: python -m app.services.strategy_service.main
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+
+  meta_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: meta_service
+    ports:
+      - "8004:8004"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: python -m app.services.meta_service.main
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+
+  logs_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: logs_service
+    ports:
+      - "8005:8005"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: python -m app.services.logs_service.main
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+
+  schema_validator_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: schema_validator_service
+    ports:
+      - "8006:8006"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: python -m app.services.schema_validator_service.main
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+
+  optimizer_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: optimizer_service
+    ports:
+      - "8007:8007"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    command: python -m app.services.optimizer_service.main
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+
+networks:
+  ad_campaign_network:
+    driver: bridge

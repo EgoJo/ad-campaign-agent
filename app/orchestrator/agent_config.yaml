@@ -1,0 +1,176 @@
+# Ad Campaign Orchestrator Agent Configuration
+# This file defines the agent's tools and capabilities using Google ADK format
+
+agent:
+  name: "ad_campaign_orchestrator"
+  description: "Orchestrates ad campaign creation and management across multiple platforms"
+  model: "gemini-2.0-flash-exp"
+  
+tools:
+  - name: "select_products"
+    description: "Select optimal products for an ad campaign based on objectives and constraints"
+    service: "product_service"
+    endpoint: "/select_products"
+    method: "POST"
+    parameters:
+      campaign_objective:
+        type: "string"
+        description: "Campaign objective (e.g., 'increase sales', 'brand awareness')"
+        required: true
+      target_audience:
+        type: "string"
+        description: "Target audience description"
+        required: true
+      budget:
+        type: "number"
+        description: "Campaign budget"
+        required: true
+      max_products:
+        type: "integer"
+        description: "Maximum number of products to select"
+        required: false
+        default: 10
+  
+  - name: "generate_creatives"
+    description: "Generate creative content (headlines, body text, images) for ad campaigns"
+    service: "creative_service"
+    endpoint: "/generate_creatives"
+    method: "POST"
+    parameters:
+      product_ids:
+        type: "array"
+        description: "List of product IDs to create ads for"
+        required: true
+      campaign_objective:
+        type: "string"
+        description: "Campaign objective"
+        required: true
+      target_audience:
+        type: "string"
+        description: "Target audience description"
+        required: true
+      brand_voice:
+        type: "string"
+        description: "Brand voice/tone"
+        required: false
+        default: "professional"
+      creative_types:
+        type: "array"
+        description: "Types of creatives to generate"
+        required: false
+  
+  - name: "generate_strategy"
+    description: "Generate campaign strategy including budget allocation and platform selection"
+    service: "strategy_service"
+    endpoint: "/generate_strategy"
+    method: "POST"
+    parameters:
+      campaign_objective:
+        type: "string"
+        description: "Campaign objective"
+        required: true
+      total_budget:
+        type: "number"
+        description: "Total campaign budget"
+        required: true
+      duration_days:
+        type: "integer"
+        description: "Campaign duration in days"
+        required: true
+      target_audience:
+        type: "string"
+        description: "Target audience description"
+        required: true
+      platforms:
+        type: "array"
+        description: "Platforms to advertise on"
+        required: true
+  
+  - name: "create_campaign"
+    description: "Create and deploy a campaign on Meta platforms (Facebook/Instagram)"
+    service: "meta_service"
+    endpoint: "/create_campaign"
+    method: "POST"
+    parameters:
+      campaign_name:
+        type: "string"
+        description: "Campaign name"
+        required: true
+      objective:
+        type: "string"
+        description: "Campaign objective"
+        required: true
+      daily_budget:
+        type: "number"
+        description: "Daily budget"
+        required: true
+      targeting:
+        type: "object"
+        description: "Targeting criteria"
+        required: true
+      creatives:
+        type: "array"
+        description: "Ad creatives to use"
+        required: true
+      start_date:
+        type: "string"
+        description: "Campaign start date (ISO format)"
+        required: true
+      end_date:
+        type: "string"
+        description: "Campaign end date (ISO format)"
+        required: false
+  
+  - name: "append_event"
+    description: "Log an event for auditing and monitoring"
+    service: "logs_service"
+    endpoint: "/append_event"
+    method: "POST"
+    parameters:
+      event_type:
+        type: "string"
+        description: "Type of event"
+        required: true
+      message:
+        type: "string"
+        description: "Event message"
+        required: true
+      metadata:
+        type: "object"
+        description: "Additional event metadata"
+        required: false
+      campaign_id:
+        type: "string"
+        description: "Associated campaign ID"
+        required: false
+  
+  - name: "validate"
+    description: "Validate data against a predefined schema"
+    service: "schema_validator_service"
+    endpoint: "/validate"
+    method: "POST"
+    parameters:
+      schema_name:
+        type: "string"
+        description: "Name of the schema to validate against"
+        required: true
+      data:
+        type: "object"
+        description: "Data to validate"
+        required: true
+  
+  - name: "summarize_recent_runs"
+    description: "Analyze recent campaign performance and get optimization suggestions"
+    service: "optimizer_service"
+    endpoint: "/summarize_recent_runs"
+    method: "POST"
+    parameters:
+      campaign_ids:
+        type: "array"
+        description: "Specific campaign IDs to analyze"
+        required: false
+      days:
+        type: "integer"
+        description: "Number of days to look back"
+        required: false
+        default: 7

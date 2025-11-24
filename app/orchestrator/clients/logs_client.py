@@ -1,0 +1,70 @@
+"""
+Client for interacting with the Logs Service.
+"""
+
+from typing import Dict, Any, Optional
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from common.http_client import MCPClient
+from common.config import settings
+
+
+class LogsClient:
+    """Client for the Logs Service MCP."""
+    
+    def __init__(self):
+        """Initialize the logs service client."""
+        self.client = MCPClient(settings.LOGS_SERVICE_URL)
+    
+    def append_event(
+        self,
+        event_type: str,
+        message: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        campaign_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Append an event to the logs.
+        
+        Args:
+            event_type: Type of event
+            message: Event message
+            metadata: Additional event metadata
+            campaign_id: Associated campaign ID
+            
+        Returns:
+            Status and event ID
+        """
+        request_data = {
+            "event_type": event_type,
+            "message": message
+        }
+        
+        if metadata:
+            request_data["metadata"] = metadata
+        if campaign_id:
+            request_data["campaign_id"] = campaign_id
+        
+        return self.client.post("/append_event", request_data)
+    
+    def close(self):
+        """Close the client connection."""
+        self.client.close()
+
+
+if __name__ == "__main__":
+    # Example usage
+    client = LogsClient()
+    try:
+        result = client.append_event(
+            event_type="campaign_created",
+            message="Campaign created successfully",
+            campaign_id="CAMP-123"
+        )
+        print("Event logged:", result)
+    finally:
+        client.close()
