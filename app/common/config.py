@@ -1,6 +1,15 @@
 """
 Common configuration module for the ad-campaign agent system.
 Loads environment variables and provides centralized configuration.
+
+Usage:
+    - Local development: Uses default localhost URLs
+    - Production deployment: Set environment variables to override URLs
+    
+Example for production (.env or environment variables):
+    PRODUCT_SERVICE_URL=https://product-service.example.com
+    CREATIVE_SERVICE_URL=https://creative-service.example.com
+    # ... etc
 """
 
 import os
@@ -9,9 +18,17 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """
+    Application settings loaded from environment variables.
     
-    # Service URLs
+    Service URLs:
+        - Default values use localhost for local development
+        - Override with environment variables for production deployment
+        - Environment variables take precedence over defaults
+    """
+    
+    # Service URLs - Default to localhost for local development
+    # Override with environment variables for production
     PRODUCT_SERVICE_URL: str = "http://localhost:8001"
     CREATIVE_SERVICE_URL: str = "http://localhost:8002"
     STRATEGY_SERVICE_URL: str = "http://localhost:8003"
@@ -31,6 +48,8 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        # Allow environment variables to override defaults
+        case_sensitive = False
 
 
 # Global settings instance
