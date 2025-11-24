@@ -15,14 +15,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# 服务URL配置 - 使用公网URL
-PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL", "https://8001-iwz58hex7zmgmb594dps4-ef747173.manus-asia.computer")
-CREATIVE_SERVICE_URL = os.getenv("CREATIVE_SERVICE_URL", "https://8002-iwz58hex7zmgmb594dps4-ef747173.manus-asia.computer")
-STRATEGY_SERVICE_URL = os.getenv("STRATEGY_SERVICE_URL", "https://8003-iwz58hex7zmgmb594dps4-ef747173.manus-asia.computer")
-META_SERVICE_URL = os.getenv("META_SERVICE_URL", "https://8004-iwz58hex7zmgmb594dps4-ef747173.manus-asia.computer")
-LOGS_SERVICE_URL = os.getenv("LOGS_SERVICE_URL", "https://8005-iwz58hex7zmgmb594dps4-ef747173.manus-asia.computer")
-VALIDATOR_SERVICE_URL = os.getenv("VALIDATOR_SERVICE_URL", "https://8006-iwz58hex7zmgmb594dps4-ef747173.manus-asia.computer")
-OPTIMIZER_SERVICE_URL = os.getenv("OPTIMIZER_SERVICE_URL", "https://8007-iwz58hex7zmgmb594dps4-ef747173.manus-asia.computer")
+# 服务URL配置 - 优先使用环境变量，否则使用本地默认值
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from common.config import settings
+
+PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL", settings.PRODUCT_SERVICE_URL)
+CREATIVE_SERVICE_URL = os.getenv("CREATIVE_SERVICE_URL", settings.CREATIVE_SERVICE_URL)
+STRATEGY_SERVICE_URL = os.getenv("STRATEGY_SERVICE_URL", settings.STRATEGY_SERVICE_URL)
+META_SERVICE_URL = os.getenv("META_SERVICE_URL", settings.META_SERVICE_URL)
+LOGS_SERVICE_URL = os.getenv("LOGS_SERVICE_URL", settings.LOGS_SERVICE_URL)
+VALIDATOR_SERVICE_URL = os.getenv("VALIDATOR_SERVICE_URL", settings.SCHEMA_VALIDATOR_SERVICE_URL)
+OPTIMIZER_SERVICE_URL = os.getenv("OPTIMIZER_SERVICE_URL", settings.OPTIMIZER_SERVICE_URL)
 
 
 # Request/Response Models
