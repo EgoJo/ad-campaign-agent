@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 import os
 import requests
 import json
-from openai import OpenAI
+import google.generativeai as genai
 
 app = FastAPI(
     title="Ad Campaign Orchestrator Agent (LLM-Enhanced)",
@@ -30,8 +30,13 @@ LOGS_SERVICE_URL = os.getenv("LOGS_SERVICE_URL", settings.LOGS_SERVICE_URL)
 VALIDATOR_SERVICE_URL = os.getenv("VALIDATOR_SERVICE_URL", settings.SCHEMA_VALIDATOR_SERVICE_URL)
 OPTIMIZER_SERVICE_URL = os.getenv("OPTIMIZER_SERVICE_URL", settings.OPTIMIZER_SERVICE_URL)
 
-# 初始化OpenAI客户端
-openai_client = OpenAI()
+# 初始化Gemini客户端
+gemini_api_key = os.getenv("GEMINI_API_KEY", settings.GEMINI_API_KEY)
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
+    gemini_model = genai.GenerativeModel(settings.GEMINI_MODEL)
+else:
+    gemini_model = None
 
 # Agent Prompt
 AGENT_PROMPT = """You are the main orchestrator agent of an ad campaign automation system.
@@ -104,17 +109,22 @@ def parse_user_intent(user_request: str) -> CampaignSpec:
     使用LLM解析用户意图并生成CampaignSpec
     """
     try:
-        response = openai_client.chat.completions.create(
-            model="gemini-2.5-flash",
-            messages=[
-                {"role": "system", "content": AGENT_PROMPT},
-                {"role": "user", "content": f"Parse this campaign request into CampaignSpec JSON:\n\n{user_request}"}
-            ],
-            temperature=0.3,
-            max_tokens=500
+        if not gemini_model:
+            raise HTTPException(
+                status_code=500,
+                detail="GEMINI_API_KEY not configured. Please set GEMINI_API_KEY environment variable."
+            )
+        
+        prompt = f"{AGENT_PROMPT}\n\nParse this campaign request into CampaignSpec JSON:\n\n{user_request}"
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=500
+            )
         )
         
-        content = response.choices[0].message.content
+        content = response.text
         
         # 提取JSON（可能被包裹在markdown代码块中）
         if "```json" in content:
@@ -150,17 +160,19 @@ Results:
 
 Generate a 2-3 sentence summary explaining what was accomplished."""
 
-        response = openai_client.chat.completions.create(
-            model="gemini-2.5-flash",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that summarizes ad campaign creation results."},
-                {"role": "user", "content": summary_prompt}
-            ],
-            temperature=0.7,
-            max_tokens=200
+        if not gemini_model:
+            return f"Campaign created successfully with {len(results.get('products', []))} products and {len(results.get('creatives', []))} creatives."
+        
+        prompt = "You are a helpful assistant that summarizes ad campaign creation results.\n\n" + summary_prompt
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=200
+            )
         )
         
-        return response.choices[0].message.content.strip()
+        return response.text.strip()
         
     except Exception as e:
         return f"Campaign created successfully with {len(results.get('products', []))} products and {len(results.get('creatives', []))} creatives."
@@ -178,17 +190,19 @@ Context: {json.dumps(context, indent=2)}
 
 Explain this error in simple terms and suggest what information the user should provide to fix it."""
 
-        response = openai_client.chat.completions.create(
-            model="gemini-2.5-flash",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that explains errors clearly."},
-                {"role": "user", "content": error_prompt}
-            ],
-            temperature=0.5,
-            max_tokens=200
+        if not gemini_model:
+            return f"Error: {error}. Please check your input and try again."
+        
+        prompt = "You are a helpful assistant that explains errors clearly.\n\n" + error_prompt
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.5,
+                max_output_tokens=200
+            )
         )
         
-        return response.choices[0].message.content.strip()
+        return response.text.strip()
         
     except Exception:
         return f"Error: {error}. Please check your input and try again."

@@ -11,15 +11,16 @@ This system uses a **microservices architecture** with an orchestrator agent tha
 
 ### Services
 
-| Service | Port | Description |
-|---------|------|-------------|
-| **product_service** | 8001 | Selects optimal products for campaigns |
-| **creative_service** | 8002 | Generates ad creatives (text, images) |
-| **strategy_service** | 8003 | Creates campaign strategies and budget allocation |
-| **meta_service** | 8004 | Deploys campaigns to Meta platforms |
-| **logs_service** | 8005 | Logs events for auditing and monitoring |
-| **schema_validator_service** | 8006 | Validates data structures |
-| **optimizer_service** | 8007 | Analyzes performance and suggests optimizations |
+| Service | Port | Description | Startup Script |
+|---------|------|-------------|----------------|
+| **product_service** | 8001 | Selects optimal products for campaigns | `./start_services.sh` |
+| **creative_service** | 8002 | Generates ad creatives (text, images) | `./start_services.sh` |
+| **strategy_service** | 8003 | Creates campaign strategies and budget allocation | `./start_services.sh` |
+| **meta_service** | 8004 | Deploys campaigns to Meta platforms | `./start_services.sh` |
+| **logs_service** | 8005 | Logs events for auditing and monitoring | `./start_services.sh` |
+| **schema_validator_service** | 8006 | Validates data structures | `./start_services.sh` |
+| **optimizer_service** | 8007 | Analyzes performance and suggests optimizations | `./start_services.sh` |
+| **orchestrator_agent** | 8000 | Coordinates all services | `./start_orchestrator.sh` or `./start_orchestrator_llm.sh` |
 
 ## Project Structure
 
@@ -65,10 +66,11 @@ ad-campaign-agent/
 - Python 3.11 or higher
 - pip
 - (Optional) Docker and Docker Compose
+- (Optional) Google Gemini API Key (for LLM-enhanced orchestrator)
 
 ### Installation
 
-1. **Clone the repository** (or use this scaffold):
+1. **Clone the repository**:
    ```bash
    cd ad-campaign-agent
    ```
@@ -84,42 +86,154 @@ ad-campaign-agent/
    pip install -r requirements.txt
    ```
 
-4. **Configure environment variables**:
+4. **Configure environment variables** (optional):
    ```bash
-   cp .env.example .env
-   # Edit .env and add your GEMINI_API_KEY
+   # Create .env file for production deployment or LLM features
+   # For local development, defaults are used (localhost)
+   # See CONFIGURATION.md for details
    ```
 
-### Running Services
+## Quick Start - Complete System
 
-#### Option 1: Run Locally (Development)
+### Startup Flow Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Step 1: Start 7 MCP Services (Ports 8001-8007)        │
+│  ./start_services.sh                                     │
+└─────────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────────┐
+│  Step 2: Start Orchestrator Agent (Port 8000)           │
+│  Choose one:                                            │
+│  • ./start_orchestrator.sh (Simple Mode)                │
+│  • ./start_orchestrator_llm.sh (LLM Mode)                │
+└─────────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────────┐
+│  Step 3: Verify & Test                                   │
+│  curl http://localhost:8000/health                      │
+│  python example_usage.py                                │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Step 1: Start All MCP Services
+
+Start all 7 microservices using the startup script:
+
+```bash
+./start_services.sh
+```
+
+This will start all services in the background:
+- Product Service (port 8001)
+- Creative Service (port 8002)
+- Strategy Service (port 8003)
+- Meta Service (port 8004)
+- Logs Service (port 8005)
+- Schema Validator Service (port 8006)
+- Optimizer Service (port 8007)
+
+**Verify services are running:**
+```bash
+# Check all services
+for port in 8001 8002 8003 8004 8005 8006 8007; do
+  echo "Port $port: $(curl -s http://localhost:$port/health | grep -o '"service":"[^"]*"')"
+done
+```
+
+### Step 2: Start Orchestrator Agent
+
+Choose one of two modes:
+
+#### Option A: Simple Mode (Recommended for beginners)
+
+```bash
+./start_orchestrator.sh
+```
+
+- Uses structured API calls
+- No LLM required
+- Fast and reliable
+
+#### Option B: LLM-Enhanced Mode (Natural Language Processing)
+
+```bash
+./start_orchestrator_llm.sh
+```
+
+- Accepts natural language input
+- Intelligent error handling
+- Human-readable summaries
+- Requires `GEMINI_API_KEY` (optional, will warn if not set)
+
+**Verify orchestrator is running:**
+```bash
+curl http://localhost:8000/health
+```
+
+### Step 3: Test the System
+
+```bash
+# Test with example workflow
+python example_usage.py
+
+# Or test with demo workflow
+python demo_workflow.py
+```
+
+### Complete Startup Sequence
+
+```bash
+# 1. Start all MCP services
+./start_services.sh
+
+# 2. Wait a few seconds for services to initialize
+sleep 3
+
+# 3. Start orchestrator (choose one)
+./start_orchestrator.sh          # Simple mode
+# OR
+./start_orchestrator_llm.sh      # LLM mode
+
+# 4. Verify everything is running
+curl http://localhost:8000/health
+curl http://localhost:8000/services/status
+```
+
+### Stopping Services
+
+```bash
+# Stop orchestrator
+./stop_orchestrator.sh
+
+# Stop all MCP services
+./stop_services.sh
+```
+
+## Alternative Startup Methods
+
+### Manual Startup (for debugging)
 
 Start each service in a separate terminal:
 
 ```bash
-# Terminal 1 - Product Service
-python -m app.services.product_service.main
+# Terminal 1-7: Start MCP services
+python -m app.services.product_service.main      # Port 8001
+python -m app.services.creative_service.main    # Port 8002
+python -m app.services.strategy_service.main    # Port 8003
+python -m app.services.meta_service.main        # Port 8004
+python -m app.services.logs_service.main        # Port 8005
+python -m app.services.schema_validator_service.main  # Port 8006
+python -m app.services.optimizer_service.main   # Port 8007
 
-# Terminal 2 - Creative Service
-python -m app.services.creative_service.main
-
-# Terminal 3 - Strategy Service
-python -m app.services.strategy_service.main
-
-# Terminal 4 - Meta Service
-python -m app.services.meta_service.main
-
-# Terminal 5 - Logs Service
-python -m app.services.logs_service.main
-
-# Terminal 6 - Schema Validator Service
-python -m app.services.schema_validator_service.main
-
-# Terminal 7 - Optimizer Service
-python -m app.services.optimizer_service.main
+# Terminal 8: Start orchestrator
+python -m app.orchestrator.simple_service       # Port 8000 (Simple)
+# OR
+python -m app.orchestrator.llm_service          # Port 8000 (LLM)
 ```
 
-#### Option 2: Run with Docker Compose
+### Docker Compose
 
 ```bash
 docker-compose up --build
@@ -127,18 +241,37 @@ docker-compose up --build
 
 This will start all services in containers.
 
-### Testing Services
+## Service Status & Health Checks
+
+### Check Individual Services
 
 Each service exposes a health check endpoint:
 
 ```bash
-# Test product service
-curl http://localhost:8001/health
+# MCP Services
+curl http://localhost:8001/health  # Product Service
+curl http://localhost:8002/health  # Creative Service
+curl http://localhost:8003/health  # Strategy Service
+curl http://localhost:8004/health  # Meta Service
+curl http://localhost:8005/health  # Logs Service
+curl http://localhost:8006/health  # Schema Validator Service
+curl http://localhost:8007/health  # Optimizer Service
 
-# Test creative service
-curl http://localhost:8002/health
+# Orchestrator Agent
+curl http://localhost:8000/health
+```
 
-# ... and so on for other services
+### Check All Services Status
+
+```bash
+# Via orchestrator (if running)
+curl http://localhost:8000/services/status | python -m json.tool
+
+# Or manually check all
+for port in 8001 8002 8003 8004 8005 8006 8007 8000; do
+  service=$(curl -s http://localhost:$port/health 2>/dev/null | grep -o '"service":"[^"]*"' | cut -d'"' -f4 || echo "not running")
+  printf "Port %d: %s\n" $port "$service"
+done
 ```
 
 ### Using the Orchestrator Clients
@@ -228,15 +361,29 @@ Each service contains `TODO` comments indicating where to add real implementatio
 
 ## API Documentation
 
-Each service provides interactive API documentation:
+### MCP Services API Docs
 
-- Product Service: http://localhost:8001/docs
-- Creative Service: http://localhost:8002/docs
-- Strategy Service: http://localhost:8003/docs
-- Meta Service: http://localhost:8004/docs
-- Logs Service: http://localhost:8005/docs
-- Schema Validator Service: http://localhost:8006/docs
-- Optimizer Service: http://localhost:8007/docs
+Each service provides interactive Swagger/OpenAPI documentation:
+
+- **Product Service**: http://localhost:8001/docs
+- **Creative Service**: http://localhost:8002/docs
+- **Strategy Service**: http://localhost:8003/docs
+- **Meta Service**: http://localhost:8004/docs
+- **Logs Service**: http://localhost:8005/docs
+- **Schema Validator Service**: http://localhost:8006/docs
+- **Optimizer Service**: http://localhost:8007/docs
+
+### Orchestrator Agent API Docs
+
+- **Simple Mode**: http://localhost:8000/docs
+  - `POST /create_campaign` - Create campaign with structured input
+  - `POST /optimize_campaign` - Optimize existing campaign
+  - `GET /services/status` - Check all service statuses
+
+- **LLM Mode**: http://localhost:8000/docs
+  - `POST /create_campaign_nl` - Create campaign from natural language
+  - `POST /create_campaign` - Create campaign with structured input
+  - `GET /services/status` - Check all service statuses
 
 ## Development Guidelines
 
@@ -266,16 +413,53 @@ pytest
 pytest --cov=app tests/
 ```
 
-## Deployment
+## Configuration
 
 ### Environment Variables
 
-Key environment variables to configure:
+The system supports two deployment modes:
 
-- `GEMINI_API_KEY`: Your Google Gemini API key
-- `PRODUCT_SERVICE_URL`: URL of the product service
-- `CREATIVE_SERVICE_URL`: URL of the creative service
-- (etc. for other services)
+#### Local Development (Default)
+- Uses `localhost` URLs automatically
+- No configuration needed
+- All services run on localhost:8001-8007
+
+#### Production Deployment
+Set environment variables to override defaults:
+
+```bash
+# Service URLs (for production)
+export PRODUCT_SERVICE_URL=https://product-service.yourdomain.com
+export CREATIVE_SERVICE_URL=https://creative-service.yourdomain.com
+export STRATEGY_SERVICE_URL=https://strategy-service.yourdomain.com
+export META_SERVICE_URL=https://meta-service.yourdomain.com
+export LOGS_SERVICE_URL=https://logs-service.yourdomain.com
+export VALIDATOR_SERVICE_URL=https://validator-service.yourdomain.com
+export OPTIMIZER_SERVICE_URL=https://optimizer-service.yourdomain.com
+
+# LLM Configuration (optional, for LLM mode)
+export GEMINI_API_KEY=your_gemini_api_key_here
+export GEMINI_MODEL=gemini-2.0-flash-exp
+```
+
+**See [CONFIGURATION.md](CONFIGURATION.md) for detailed configuration guide.**
+
+### Key Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PRODUCT_SERVICE_URL` | `http://localhost:8001` | Product service URL |
+| `CREATIVE_SERVICE_URL` | `http://localhost:8002` | Creative service URL |
+| `STRATEGY_SERVICE_URL` | `http://localhost:8003` | Strategy service URL |
+| `META_SERVICE_URL` | `http://localhost:8004` | Meta service URL |
+| `LOGS_SERVICE_URL` | `http://localhost:8005` | Logs service URL |
+| `SCHEMA_VALIDATOR_SERVICE_URL` | `http://localhost:8006` | Validator service URL |
+| `OPTIMIZER_SERVICE_URL` | `http://localhost:8007` | Optimizer service URL |
+| `GEMINI_API_KEY` | `None` | Google Gemini API key (for LLM mode) |
+| `GEMINI_MODEL` | `gemini-2.0-flash-exp` | Gemini model name |
+| `ENVIRONMENT` | `development` | Environment identifier |
+
+## Deployment
 
 ### Production Considerations
 
@@ -302,6 +486,91 @@ This is a starting scaffold. Customize it for your specific needs:
 5. Set up CI/CD pipelines
 6. Add monitoring and observability
 
+## Troubleshooting
+
+### Port Already in Use
+
+```bash
+# Find and kill process on a port
+lsof -ti:8000 | xargs kill
+
+# Or use the stop scripts
+./stop_orchestrator.sh
+./stop_services.sh
+```
+
+### Services Not Responding
+
+```bash
+# Check logs
+tail -f logs/*.log
+
+# Check specific service log
+tail -f logs/product_service.log
+tail -f logs/orchestrator.log
+tail -f logs/orchestrator_llm.log
+```
+
+### Import Errors
+
+Make sure you're in the project root and have activated the virtual environment:
+
+```bash
+cd ad-campaign-agent
+source venv/bin/activate
+```
+
+### LLM Mode Not Working
+
+If using LLM mode, ensure `GEMINI_API_KEY` is set:
+
+```bash
+# Check if API key is set
+echo $GEMINI_API_KEY
+
+# Set it in .env file
+echo "GEMINI_API_KEY=your_key_here" >> .env
+```
+
+## Common Commands Reference
+
+```bash
+# Start all services
+./start_services.sh              # Start 7 MCP services
+./start_orchestrator.sh          # Start orchestrator (simple mode)
+./start_orchestrator_llm.sh     # Start orchestrator (LLM mode)
+
+# Stop services
+./stop_services.sh               # Stop all MCP services
+./stop_orchestrator.sh           # Stop orchestrator
+
+# Check status
+curl http://localhost:8000/health
+curl http://localhost:8000/services/status
+
+# View logs
+tail -f logs/*.log
+tail -f logs/orchestrator.log
+tail -f logs/orchestrator_llm.log
+
+# Run examples
+python example_usage.py
+python demo_workflow.py
+
+# Test services
+python test_all_services.py
+```
+
+## Additional Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - 5-minute quick start guide
+- **[CONFIGURATION.md](CONFIGURATION.md)** - Detailed configuration guide
+- **[LLM_ORCHESTRATOR.md](LLM_ORCHESTRATOR.md)** - LLM orchestrator documentation
+
 ## Support
 
-For issues or questions about this scaffold, please refer to the TODO comments in the code for guidance on implementing real functionality.
+For issues or questions:
+1. Check the troubleshooting section above
+2. Review service logs in `logs/` directory
+3. Refer to TODO comments in the code for implementation guidance
+4. Check the [CONFIGURATION.md](CONFIGURATION.md) for environment setup
