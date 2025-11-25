@@ -6,12 +6,6 @@ to improve ROI and achieve campaign objectives.
 """
 
 from fastapi import FastAPI, HTTPException
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from app.common.middleware import setup_logging, RequestIDMiddleware, get_cors_middleware_class, get_logger
 from app.common.config import settings
 from app.common.exceptions import register_exception_handlers
