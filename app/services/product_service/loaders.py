@@ -235,6 +235,24 @@ def _get_default_products() -> List[Product]:
             category="electronics",
             image_url="https://example.com/images/webcam.jpg",
             metadata={"resolution": "1080p", "microphone": True}
+        ),
+        Product(
+            product_id="PROD-011",
+            title="General Product A",
+            description="A versatile general-purpose product suitable for various use cases. High quality and reliable.",
+            price=49.99,
+            category="general",
+            image_url="https://example.com/images/general_a.jpg",
+            metadata={"type": "general", "versatile": True}
+        ),
+        Product(
+            product_id="PROD-012",
+            title="General Product B",
+            description="Another general-purpose product with excellent value. Perfect for everyday needs.",
+            price=39.99,
+            category="general",
+            image_url="https://example.com/images/general_b.jpg",
+            metadata={"type": "general", "value": True}
         )
     ]
 
@@ -264,15 +282,18 @@ def load_products(category: Optional[str] = None) -> List[Product]:
     products = load_products_from_csv()
     if products:
         if category:
-            # Filter by category
-            products = [p for p in products if category.lower() in p.category.lower()]
+            # Filter by category (case-insensitive, partial match)
+            category_lower = category.lower()
+            products = [p for p in products if category_lower in p.category.lower() or p.category.lower() in category_lower]
         return products
     
     # Last resort: default products
     logger.warning("No data source available, using default sample products")
     default_products = _get_default_products()
     if category:
-        default_products = [p for p in default_products if category.lower() in p.category.lower()]
+        # Filter by category (case-insensitive, partial match)
+        category_lower = category.lower()
+        default_products = [p for p in default_products if category_lower in p.category.lower() or p.category.lower() in category_lower]
     return default_products
 
 
