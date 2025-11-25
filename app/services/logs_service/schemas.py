@@ -3,34 +3,39 @@ Pydantic schemas for the logs service.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
-from enum import Enum
-
-
-class EventType(str, Enum):
-    """Types of events to log."""
-    CAMPAIGN_CREATED = "campaign_created"
-    CAMPAIGN_UPDATED = "campaign_updated"
-    AD_CREATED = "ad_created"
-    PRODUCT_SELECTED = "product_selected"
-    CREATIVE_GENERATED = "creative_generated"
-    STRATEGY_GENERATED = "strategy_generated"
-    ERROR = "error"
-    WARNING = "warning"
-    INFO = "info"
 
 
 class AppendEventRequest(BaseModel):
     """Request to append an event to logs."""
-    event_type: EventType = Field(..., description="Type of event")
-    message: str = Field(..., description="Event message")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional event metadata")
-    campaign_id: Optional[str] = Field(None, description="Associated campaign ID")
-    timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow, description="Event timestamp")
+    # Use LogEvent from common/schemas.py
+    event_id: Optional[str] = Field(None, description="Optional event ID")
+    timestamp: str = Field(..., description="Event timestamp (ISO format)")
+    stage: str = Field(..., description="Workflow stage")
+    service: str = Field(..., description="Service name")
+    request: Optional[Dict[str, Any]] = Field(None, description="Request data")
+    response: Optional[Dict[str, Any]] = Field(None, description="Response data")
+    success: bool = Field(..., description="Whether operation was successful")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
 class AppendEventResponse(BaseModel):
     """Response after appending an event."""
     status: str = Field(..., description="Operation status")
-    event_id: str = Field(..., description="Unique event ID")
+    event_id: Optional[str] = Field(None, description="Event ID if created")
+
+
+class QueryLogsResponse(BaseModel):
+    """Response for log query."""
+    status: str = Field(..., description="Operation status")
+    logs: List[Dict[str, Any]] = Field(..., description="List of log events")
+    pagination: Dict[str, int] = Field(..., description="Pagination metadata")
+
+
+class AnalyticsResponse(BaseModel):
+    """Response for analytics query."""
+    status: str = Field(..., description="Operation status")
+    by_stage: Dict[str, int] = Field(..., description="Count by stage")
+    by_service: Dict[str, int] = Field(..., description="Count by service")
+    levels: Dict[str, int] = Field(..., description="Count by log level")

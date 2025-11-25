@@ -42,6 +42,12 @@ if SQLALCHEMY_AVAILABLE:
 else:
     ProductORM = None
 
+# Import LogEventORM from models.py
+try:
+    from app.common.models import LogEventORM
+except ImportError:
+    LogEventORM = None
+
 
 # Database connection
 _engine = None
