@@ -77,8 +77,8 @@ def sample_products(sample_product):
 def sample_request(sample_campaign_spec, sample_products):
     """Sample generate creatives request."""
     return {
-        "campaign_spec": sample_campaign_spec.dict(),
-        "products": [p.dict() for p in sample_products]
+        "campaign_spec": sample_campaign_spec.model_dump(),
+        "products": [p.model_dump() for p in sample_products]
     }
 
 
@@ -100,7 +100,7 @@ class TestGenerateCreatives:
     def test_generate_creatives_no_products(self, sample_campaign_spec):
         """Test that missing products returns error."""
         request = {
-            "campaign_spec": sample_campaign_spec.dict(),
+            "campaign_spec": sample_campaign_spec.model_dump(),
             "products": []
         }
         response = client.post("/generate_creatives", json=request)
@@ -113,7 +113,7 @@ class TestGenerateCreatives:
     def test_generate_creatives_missing_campaign_spec(self, sample_products):
         """Test that missing campaign_spec returns error."""
         request = {
-            "products": [p.dict() for p in sample_products]
+            "products": [p.model_dump() for p in sample_products]
         }
         response = client.post("/generate_creatives", json=request)
         # Should return 422 validation error from FastAPI
@@ -177,8 +177,8 @@ class TestGenerateCreatives:
         ]
         
         request = {
-            "campaign_spec": sample_campaign_spec.dict(),
-            "products": [p.dict() for p in products]
+            "campaign_spec": sample_campaign_spec.model_dump(),
+            "products": [p.model_dump() for p in products]
         }
         
         response = client.post("/generate_creatives", json=request)
@@ -387,7 +387,7 @@ class TestErrorHandling:
         }
         request = {
             "campaign_spec": invalid_spec,
-            "products": [p.dict() for p in sample_products]
+            "products": [p.model_dump() for p in sample_products]
         }
         # Should fail validation
         response = client.post("/generate_creatives", json=request)
@@ -404,7 +404,7 @@ class TestErrorHandling:
         }
         request = {
             "campaign_spec": invalid_spec,
-            "products": [p.dict() for p in sample_products]
+            "products": [p.model_dump() for p in sample_products]
         }
         # Should fail validation
         response = client.post("/generate_creatives", json=request)

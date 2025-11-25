@@ -362,9 +362,13 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
             "success_rate": len(successful_llm_calls) / len(llm_calls) if llm_calls else 0
         }
         
+        # Convert Creative objects to dicts for Pydantic v2 compatibility
+        # Pydantic v2 requires dict format when constructing nested models in some cases
+        creatives_dict = [creative.model_dump() for creative in all_creatives]
+        
         return GenerateCreativesResponse(
             status="success",
-            creatives=all_creatives,
+            creatives=creatives_dict,  # Use dict format for Pydantic v2
             debug=debug_info
         )
         

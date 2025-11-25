@@ -24,3 +24,8 @@ class GenerateCreativesResponse(BaseModel):
     status: str = Field(..., description="Response status: 'success' or 'error'")
     creatives: List[Creative] = Field(default_factory=list, description="List of generated creative assets")
     debug: Optional[Dict] = Field(None, description="Debug information including prompts and LLM responses")
+    
+    model_config = {
+        "from_attributes": True,  # Pydantic v2: Allow creating from ORM objects
+        "arbitrary_types_allowed": False
+    }

@@ -36,7 +36,22 @@ class TestCreateCampaign:
                 "genders": [1, 2],
                 "locations": ["US"]
             },
-            "creatives": ["creative_1", "creative_2"],
+            "creatives": [
+                {
+                    "creative_id": "creative_1",
+                    "headline": "Test Headline 1",
+                    "body_text": "Test body text 1",
+                    "call_to_action": "Learn More",
+                    "image_url": "https://example.com/image1.jpg"
+                },
+                {
+                    "creative_id": "creative_2",
+                    "headline": "Test Headline 2",
+                    "body_text": "Test body text 2",
+                    "call_to_action": "Shop Now",
+                    "image_url": "https://example.com/image2.jpg"
+                }
+            ],
             "start_date": "2025-01-01"
         }
         response = client.post("/create_campaign", json=payload)
