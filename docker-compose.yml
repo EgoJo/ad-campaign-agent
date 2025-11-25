@@ -15,6 +15,12 @@ services:
       - ./app:/app/app
     networks:
       - ad_campaign_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   creative_service:
     build:
@@ -31,6 +37,12 @@ services:
       - ./app:/app/app
     networks:
       - ad_campaign_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   strategy_service:
     build:
@@ -46,6 +58,12 @@ services:
       - ./app:/app/app
     networks:
       - ad_campaign_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   meta_service:
     build:
@@ -61,6 +79,12 @@ services:
       - ./app:/app/app
     networks:
       - ad_campaign_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   logs_service:
     build:
@@ -76,6 +100,12 @@ services:
       - ./app:/app/app
     networks:
       - ad_campaign_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   optimizer_service:
     build:
@@ -91,6 +121,56 @@ services:
       - ./app:/app/app
     networks:
       - ad_campaign_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  orchestrator_agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator_agent
+    ports:
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash-exp}
+      # Service URLs - use Docker service names for internal communication
+      - PRODUCT_SERVICE_URL=http://product_service:8001
+      - CREATIVE_SERVICE_URL=http://creative_service:8002
+      - STRATEGY_SERVICE_URL=http://strategy_service:8003
+      - META_SERVICE_URL=http://meta_service:8004
+      - LOGS_SERVICE_URL=http://logs_service:8005
+      - OPTIMIZER_SERVICE_URL=http://optimizer_service:8007
+    command: python -m uvicorn app.orchestrator.llm_service:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./app:/app/app
+    networks:
+      - ad_campaign_network
+    depends_on:
+      product_service:
+        condition: service_healthy
+      creative_service:
+        condition: service_healthy
+      strategy_service:
+        condition: service_healthy
+      meta_service:
+        condition: service_healthy
+      logs_service:
+        condition: service_healthy
+      optimizer_service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 networks:
   ad_campaign_network:
