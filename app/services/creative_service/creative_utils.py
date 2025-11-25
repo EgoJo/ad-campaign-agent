@@ -8,6 +8,13 @@ import logging
 import google.generativeai as genai
 from typing import Dict, Optional, Tuple, List
 import sys
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    RetryError
+)
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -191,15 +198,49 @@ Return ONLY the image description text, no JSON, no markdown, just the descripti
     return prompt
 
 
-def call_gemini_text(prompt: str) -> Optional[str]:
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type((Exception,)),
+    reraise=True
+)
+def _call_gemini_api_internal(prompt: str) -> Optional[str]:
     """
-    Call Gemini API for text generation.
+    Internal function to call Gemini API with retry logic.
     
     Args:
         prompt: Prompt string
         
     Returns:
         Generated text or None if error
+    """
+    if not gemini_model:
+        return None
+    
+    response = gemini_model.generate_content(
+        prompt,
+        generation_config=genai.types.GenerationConfig(
+            temperature=0.7,
+            max_output_tokens=500
+        )
+    )
+    return response.text.strip() if response and response.text else None
+
+
+def call_gemini_text(prompt: str) -> Optional[str]:
+    """
+    Call Gemini API for text generation with exponential backoff retry.
+    
+    This function implements retry logic to handle:
+    - Rate limiting (429 errors)
+    - Timeout errors
+    - Transient network errors
+    
+    Args:
+        prompt: Prompt string
+        
+    Returns:
+        Generated text or None if error after retries
     """
     logger.debug(f"call_gemini_text called with prompt length: {len(prompt)}")
     
@@ -210,16 +251,12 @@ def call_gemini_text(prompt: str) -> Optional[str]:
     
     logger.debug(f"Calling Gemini API with model: {settings.GEMINI_MODEL}")
     try:
-        response = gemini_model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=500
-            )
-        )
-        result = response.text.strip() if response and response.text else None
+        result = _call_gemini_api_internal(prompt)
         logger.debug(f"Gemini API call successful, response length: {len(result) if result else 0}")
         return result
+    except RetryError as e:
+        logger.error(f"Gemini API call failed after retries: {e.last_attempt.exception()}")
+        return None
     except Exception as e:
         logger.error(f"Error calling Gemini API: {e}", exc_info=True)
         logger.debug(f"Exception type: {type(e).__name__}, Exception message: {str(e)}")

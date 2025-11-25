@@ -7,9 +7,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 import os
-import requests
+import httpx
 import json
 import google.generativeai as genai
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type
+)
 
 app = FastAPI(
     title="Ad Campaign Orchestrator Agent (LLM-Enhanced)",
@@ -104,27 +110,40 @@ class OrchestratorResponse(BaseModel):
     campaign_spec: Optional[Dict[str, Any]] = None
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    retry=retry_if_exception_type((Exception,)),
+    reraise=True
+)
+def _call_gemini_with_retry(prompt: str, temperature: float = 0.3, max_tokens: int = 500):
+    """Internal function to call Gemini API with retry logic."""
+    if not gemini_model:
+        raise HTTPException(
+            status_code=500,
+            detail="GEMINI_API_KEY not configured. Please set GEMINI_API_KEY environment variable."
+        )
+    
+    response = gemini_model.generate_content(
+        prompt,
+        generation_config=genai.types.GenerationConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens
+        )
+    )
+    return response.text if response and response.text else None
+
+
 def parse_user_intent(user_request: str) -> CampaignSpec:
     """
-    使用LLM解析用户意图并生成CampaignSpec
+    使用LLM解析用户意图并生成CampaignSpec（带重试机制）
     """
     try:
-        if not gemini_model:
-            raise HTTPException(
-                status_code=500,
-                detail="GEMINI_API_KEY not configured. Please set GEMINI_API_KEY environment variable."
-            )
-        
         prompt = f"{AGENT_PROMPT}\n\nParse this campaign request into CampaignSpec JSON:\n\n{user_request}"
-        response = gemini_model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=500
-            )
-        )
+        content = _call_gemini_with_retry(prompt, temperature=0.3, max_tokens=500)
         
-        content = response.text
+        if not content:
+            raise ValueError("Empty response from Gemini API")
         
         # 提取JSON（可能被包裹在markdown代码块中）
         if "```json" in content:
@@ -144,7 +163,7 @@ def parse_user_intent(user_request: str) -> CampaignSpec:
 
 def generate_summary(campaign_spec: CampaignSpec, results: Dict[str, Any]) -> str:
     """
-    使用LLM生成最终摘要
+    使用LLM生成最终摘要（带重试机制）
     """
     try:
         summary_prompt = f"""Based on the campaign creation results, generate a concise, human-readable summary.
@@ -164,15 +183,9 @@ Generate a 2-3 sentence summary explaining what was accomplished."""
             return f"Campaign created successfully with {len(results.get('products', []))} products and {len(results.get('creatives', []))} creatives."
         
         prompt = "You are a helpful assistant that summarizes ad campaign creation results.\n\n" + summary_prompt
-        response = gemini_model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=200
-            )
-        )
+        content = _call_gemini_with_retry(prompt, temperature=0.7, max_tokens=200)
         
-        return response.text.strip()
+        return content.strip() if content else f"Campaign created successfully with {len(results.get('products', []))} products and {len(results.get('creatives', []))} creatives."
         
     except Exception as e:
         return f"Campaign created successfully with {len(results.get('products', []))} products and {len(results.get('creatives', []))} creatives."
@@ -267,77 +280,74 @@ async def create_campaign_natural_language(request: NaturalLanguageRequest):
         # Step 1: 使用LLM解析用户意图
         campaign_spec = parse_user_intent(request.user_request)
         
-        # Step 2-6: 执行固定管道（与原来的create_campaign相同）
-        # Step 2: 选择产品
-        product_request = {
-            "campaign_objective": campaign_spec.campaign_objective,
-            "target_audience": campaign_spec.target_audience,
-            "budget": campaign_spec.budget,
-            "product_filters": {"category": campaign_spec.product_category} if campaign_spec.product_category else {}
-        }
-        
-        response = requests.post(
-            f"{PRODUCT_SERVICE_URL}/select_products",
-            json=product_request,
-            timeout=30
-        )
-        response.raise_for_status()
-        products_response = response.json()
-        selected_products = products_response.get("products", [])
-        
-        # Step 3: 生成策略
-        strategy_request = {
-            "campaign_objective": campaign_spec.campaign_objective,
-            "total_budget": campaign_spec.budget,
-            "duration_days": campaign_spec.duration_days,
-            "target_audience": campaign_spec.target_audience,
-            "platforms": campaign_spec.platforms
-        }
-        
-        response = requests.post(
-            f"{STRATEGY_SERVICE_URL}/generate_strategy",
-            json=strategy_request,
-            timeout=30
-        )
-        response.raise_for_status()
-        strategy_response = response.json()
-        
-        # Step 4: 生成创意
-        product_ids = [p["product_id"] for p in selected_products[:3]]
-        
-        creative_request = {
-            "product_ids": product_ids,
-            "campaign_objective": campaign_spec.campaign_objective,
-            "target_audience": campaign_spec.target_audience,
-            "brand_guidelines": {"tone": "professional", "style": "modern"}
-        }
-        
-        response = requests.post(
-            f"{CREATIVE_SERVICE_URL}/generate_creatives",
-            json=creative_request,
-            timeout=30
-        )
-        response.raise_for_status()
-        creatives_response = response.json()
-        creatives = creatives_response.get("creatives", [])
-        
-        # Step 5: 创建Meta广告活动
-        meta_request = {
-            "campaign_name": f"{campaign_spec.campaign_objective}_campaign",
-            "objective": campaign_spec.campaign_objective,
-            "budget": campaign_spec.budget,
-            "target_audience": campaign_spec.target_audience,
-            "creatives": [c["creative_id"] for c in creatives[:5]]
-        }
-        
-        response = requests.post(
-            f"{META_SERVICE_URL}/create_campaign",
-            json=meta_request,
-            timeout=30
-        )
-        response.raise_for_status()
-        meta_response = response.json()
-        campaign_id = meta_response.get("campaign_id")
+        # Step 2-6: 执行固定管道（使用异步HTTP客户端）
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Step 2: 选择产品
+            product_request = {
+                "campaign_objective": campaign_spec.campaign_objective,
+                "target_audience": campaign_spec.target_audience,
+                "budget": campaign_spec.budget,
+                "product_filters": {"category": campaign_spec.product_category} if campaign_spec.product_category else {}
+            }
+            
+            response = await client.post(
+                f"{PRODUCT_SERVICE_URL}/select_products",
+                json=product_request
+            )
+            response.raise_for_status()
+            products_response = response.json()
+            selected_products = products_response.get("products", [])
+            
+            # Step 3: 生成策略
+            strategy_request = {
+                "campaign_objective": campaign_spec.campaign_objective,
+                "total_budget": campaign_spec.budget,
+                "duration_days": campaign_spec.duration_days,
+                "target_audience": campaign_spec.target_audience,
+                "platforms": campaign_spec.platforms
+            }
+            
+            response = await client.post(
+                f"{STRATEGY_SERVICE_URL}/generate_strategy",
+                json=strategy_request
+            )
+            response.raise_for_status()
+            strategy_response = response.json()
+            
+            # Step 4: 生成创意
+            product_ids = [p["product_id"] for p in selected_products[:3]]
+            
+            creative_request = {
+                "product_ids": product_ids,
+                "campaign_objective": campaign_spec.campaign_objective,
+                "target_audience": campaign_spec.target_audience,
+                "brand_guidelines": {"tone": "professional", "style": "modern"}
+            }
+            
+            response = await client.post(
+                f"{CREATIVE_SERVICE_URL}/generate_creatives",
+                json=creative_request
+            )
+            response.raise_for_status()
+            creatives_response = response.json()
+            creatives = creatives_response.get("creatives", [])
+            
+            # Step 5: 创建Meta广告活动
+            meta_request = {
+                "campaign_name": f"{campaign_spec.campaign_objective}_campaign",
+                "objective": campaign_spec.campaign_objective,
+                "budget": campaign_spec.budget,
+                "target_audience": campaign_spec.target_audience,
+                "creatives": [c["creative_id"] for c in creatives[:5]]
+            }
+            
+            response = await client.post(
+                f"{META_SERVICE_URL}/create_campaign",
+                json=meta_request
+            )
+            response.raise_for_status()
+            meta_response = response.json()
+            campaign_id = meta_response.get("campaign_id")
         
         # 收集结果
         results = {
@@ -368,7 +378,7 @@ async def create_campaign_natural_language(request: NaturalLanguageRequest):
             campaign_spec=campaign_spec.dict()
         )
         
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPError as e:
         error_msg = f"Service communication error: {str(e)}"
         explanation = explain_error(error_msg, {"user_request": request.user_request})
         errors.append(explanation)
@@ -424,7 +434,7 @@ async def create_campaign_structured(campaign_spec: CampaignSpec):
 
 @app.get("/services/status")
 async def check_services_status():
-    """检查所有微服务的状态"""
+    """检查所有微服务的状态（使用异步HTTP客户端）"""
     services_status = {}
     
     services = {
@@ -436,21 +446,32 @@ async def check_services_status():
         "optimizer_service": OPTIMIZER_SERVICE_URL,
     }
     
-    for service_name, url in services.items():
-        try:
-            response = requests.get(f"{url}/health", timeout=5)
-            health = response.json()
-            services_status[service_name] = {
-                "status": "healthy" if health.get("status") == "healthy" else "unhealthy",
-                "url": url,
-                "response": health
-            }
-        except Exception as e:
-            services_status[service_name] = {
-                "status": "unreachable",
-                "url": url,
-                "error": str(e)
-            }
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        # 并发检查所有服务状态
+        import asyncio
+        
+        async def check_service(service_name: str, url: str):
+            try:
+                response = await client.get(f"{url}/health")
+                health = response.json()
+                return {
+                    "status": "healthy" if health.get("status") == "healthy" else "unhealthy",
+                    "url": url,
+                    "response": health
+                }
+            except Exception as e:
+                return {
+                    "status": "unreachable",
+                    "url": url,
+                    "error": str(e)
+                }
+        
+        # 并发执行所有健康检查
+        tasks = [check_service(name, url) for name, url in services.items()]
+        results = await asyncio.gather(*tasks)
+        
+        for (service_name, _), result in zip(services.items(), results):
+            services_status[service_name] = result
     
     all_healthy = all(s["status"] == "healthy" for s in services_status.values())
     
