@@ -45,8 +45,8 @@ app = FastAPI(
 
 # Add middleware
 app.add_middleware(RequestIDMiddleware)
-cors_middleware = get_cors_middleware_class()
-cors_middleware(app)
+cors_middleware = get_cors_middleware_class(settings.ENVIRONMENT)
+app.add_middleware(cors_middleware)
 
 # Register exception handlers
 register_exception_handlers(app)
