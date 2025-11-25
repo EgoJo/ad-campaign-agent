@@ -23,6 +23,9 @@ from app.common.schemas import ErrorResponse
 from app.common.db import init_db, is_db_available
 
 from .schemas import SelectProductsRequest, SelectProductsResponse
+
+# Support legacy API format for backward compatibility
+from typing import Optional as TypingOptional
 from .loaders import load_products, get_products_by_category
 from .scoring import score_products
 from .grouping import group_products
@@ -75,16 +78,48 @@ async def select_products(request: SelectProductsRequest) -> Union[SelectProduct
     - Groups products by priority (high/medium/low)
     - Returns top N products
     
+    Supports two API formats:
+    1. New format: campaign_spec, limit
+    2. Legacy format: campaign_objective, target_audience, budget, max_products
+    
     Args:
-        request: Product selection request with campaign_spec and optional limit
+        request: Product selection request (new or legacy format)
         
     Returns:
         Selected products grouped by priority with debug information
         or ErrorResponse if selection fails
     """
     try:
-        campaign_spec = request.campaign_spec
-        limit = request.limit or 10
+        # Step 0: Normalize input - support both new and legacy API formats
+        from app.common.schemas import CampaignSpec
+        
+        if request.campaign_spec:
+            # New API format
+            campaign_spec = request.campaign_spec
+            limit = request.limit or 10
+        else:
+            # Legacy API format - convert to new format
+            if not request.campaign_objective or not request.budget:
+                return ErrorResponse(
+                    status="error",
+                    error_code="MISSING_REQUIRED_FIELDS",
+                    message="Either new format (campaign_spec) or legacy format (campaign_objective, budget) is required",
+                    details={}
+                )
+            
+            # Create CampaignSpec from legacy fields
+            campaign_spec = CampaignSpec(
+                user_query=request.target_audience or f"Campaign for {request.campaign_objective}",
+                platform="meta",  # Default to meta
+                budget=request.budget,
+                objective=request.campaign_objective,
+                category="general",  # Default category
+                time_range=None,
+                metadata={}
+            )
+            limit = request.max_products or 10
+            
+            logger.info("Using legacy API format, converted to CampaignSpec")
         
         logger.info(
             f"Selecting products: category={campaign_spec.category}, "

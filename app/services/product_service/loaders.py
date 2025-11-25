@@ -11,7 +11,15 @@ import csv
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 from app.common.schemas import Product
-from app.common.db import get_db_session, ProductORM, is_db_available
+from app.common.db import get_db_session, is_db_available
+
+# Import ProductORM only if SQLAlchemy is available
+try:
+    from app.common.db import ProductORM
+    PRODUCTORM_AVAILABLE = True
+except (ImportError, AttributeError):
+    PRODUCTORM_AVAILABLE = False
+    ProductORM = None
 from app.common.middleware import get_logger
 
 logger = get_logger(__name__)
@@ -31,7 +39,7 @@ def load_products_from_db(category: Optional[str] = None) -> List[Product]:
     Returns:
         List of Product objects
     """
-    if not is_db_available():
+    if not is_db_available() or not PRODUCTORM_AVAILABLE:
         return []
     
     products = []

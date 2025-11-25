@@ -6,31 +6,41 @@ Supports PostgreSQL with SQLAlchemy, with CSV fallback mode.
 
 import os
 from typing import Optional
-from sqlalchemy import create_engine, Column, String, Float, Integer, JSON, Text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from app.common.middleware import get_logger
 
 logger = get_logger(__name__)
 
-Base = declarative_base()
+# Try to import SQLAlchemy (optional dependency)
+try:
+    from sqlalchemy import create_engine, Column, String, Float, Integer, JSON, Text
+    from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.orm import sessionmaker, Session
+    SQLALCHEMY_AVAILABLE = True
+    Base = declarative_base()
+except ImportError:
+    SQLALCHEMY_AVAILABLE = False
+    Base = None
+    logger.info("SQLAlchemy not available, database features disabled")
 
 
-class ProductORM(Base):
-    """SQLAlchemy ORM model for products."""
-    __tablename__ = "products"
-    
-    product_id = Column(String, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    description = Column(Text, nullable=False)
-    price = Column(Float, nullable=False)
-    category = Column(String, nullable=False, index=True)
-    image_url = Column(String, nullable=True)
-    metadata = Column(JSON, nullable=True)
-    stock_quantity = Column(Integer, default=0)
-    created_at = Column(String, nullable=True)
-    updated_at = Column(String, nullable=True)
+if SQLALCHEMY_AVAILABLE:
+    class ProductORM(Base):
+        """SQLAlchemy ORM model for products."""
+        __tablename__ = "products"
+        
+        product_id = Column(String, primary_key=True, index=True)
+        title = Column(String, nullable=False)
+        description = Column(Text, nullable=False)
+        price = Column(Float, nullable=False)
+        category = Column(String, nullable=False, index=True)
+        image_url = Column(String, nullable=True)
+        metadata = Column(JSON, nullable=True)
+        stock_quantity = Column(Integer, default=0)
+        created_at = Column(String, nullable=True)
+        updated_at = Column(String, nullable=True)
+else:
+    ProductORM = None
 
 
 # Database connection
@@ -49,6 +59,10 @@ def init_db(database_url: Optional[str] = None) -> bool:
         True if database connection successful, False otherwise
     """
     global _engine, _SessionLocal
+    
+    if not SQLALCHEMY_AVAILABLE:
+        logger.info("SQLAlchemy not available, will use CSV fallback mode")
+        return False
     
     if not database_url:
         database_url = os.getenv("DATABASE_URL")
@@ -122,7 +136,7 @@ def is_db_available() -> bool:
 
 def create_tables():
     """Create database tables if they don't exist."""
-    if _engine is None:
+    if not SQLALCHEMY_AVAILABLE or _engine is None or Base is None:
         return False
     
     try:
