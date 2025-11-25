@@ -204,12 +204,13 @@ Return ONLY the image description text, no JSON, no markdown, just the descripti
     retry=retry_if_exception_type((Exception,)),
     reraise=True
 )
-def _call_gemini_api_internal(prompt: str) -> Optional[str]:
+def _call_gemini_api_internal(prompt: str, response_schema: Optional[Dict] = None) -> Optional[str]:
     """
-    Internal function to call Gemini API with retry logic.
+    Internal function to call Gemini API with retry logic and optional JSON Mode.
     
     Args:
         prompt: Prompt string
+        response_schema: Optional JSON schema for structured output (JSON Mode)
         
     Returns:
         Generated text or None if error
@@ -217,17 +218,24 @@ def _call_gemini_api_internal(prompt: str) -> Optional[str]:
     if not gemini_model:
         return None
     
+    generation_config = genai.types.GenerationConfig(
+        temperature=0.7,
+        max_output_tokens=500
+    )
+    
+    # Use JSON Mode if schema provided
+    if response_schema:
+        generation_config.response_schema = response_schema
+        generation_config.response_mime_type = "application/json"
+    
     response = gemini_model.generate_content(
         prompt,
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.7,
-            max_output_tokens=500
-        )
+        generation_config=generation_config
     )
     return response.text.strip() if response and response.text else None
 
 
-def call_gemini_text(prompt: str) -> Optional[str]:
+def call_gemini_text(prompt: str, response_schema: Optional[Dict] = None) -> Optional[str]:
     """
     Call Gemini API for text generation with exponential backoff retry.
     
@@ -238,9 +246,12 @@ def call_gemini_text(prompt: str) -> Optional[str]:
     
     Args:
         prompt: Prompt string
+        response_schema: Optional JSON schema for structured output (JSON Mode)
+                       When provided, forces JSON output matching the schema
         
     Returns:
         Generated text or None if error after retries
+        If response_schema is provided, returns valid JSON string
     """
     logger.debug(f"call_gemini_text called with prompt length: {len(prompt)}")
     
@@ -249,9 +260,9 @@ def call_gemini_text(prompt: str) -> Optional[str]:
         logger.debug(f"gemini_model is None. gemini_api_key exists: {gemini_api_key is not None and len(gemini_api_key) > 0}")
         return None
     
-    logger.debug(f"Calling Gemini API with model: {settings.GEMINI_MODEL}")
+    logger.debug(f"Calling Gemini API with model: {settings.GEMINI_MODEL}, JSON Mode: {response_schema is not None}")
     try:
-        result = _call_gemini_api_internal(prompt)
+        result = _call_gemini_api_internal(prompt, response_schema=response_schema)
         logger.debug(f"Gemini API call successful, response length: {len(result) if result else 0}")
         return result
     except RetryError as e:
@@ -288,8 +299,11 @@ def parse_copy_response(llm_response: str) -> Tuple[Optional[str], Optional[str]
     """
     Parse LLM response to extract headline and primary_text.
     
+    With JSON Mode enabled, the response should already be valid JSON.
+    This function handles both JSON Mode responses and legacy markdown-wrapped responses.
+    
     Args:
-        llm_response: Raw LLM response text
+        llm_response: Raw LLM response text (should be JSON with JSON Mode)
         
     Returns:
         Tuple of (headline, primary_text) or (None, None) if parsing fails
@@ -298,26 +312,36 @@ def parse_copy_response(llm_response: str) -> Tuple[Optional[str], Optional[str]
         return None, None
     
     try:
-        # Remove markdown code blocks if present
-        text = llm_response.strip()
-        if "```json" in text:
-            text = text.split("```json")[1].split("```")[0].strip()
-        elif "```" in text:
-            text = text.split("```")[1].split("```")[0].strip()
-        
-        # Try to parse as JSON
         import json
-        data = json.loads(text)
-        headline = data.get("headline", "").strip()
-        primary_text = data.get("primary_text", "").strip()
+        # With JSON Mode, response is already valid JSON
+        text = llm_response.strip()
         
-        if headline and primary_text:
-            return headline, primary_text
+        # Try direct JSON parse first (JSON Mode)
+        try:
+            data = json.loads(text)
+            headline = data.get("headline", "").strip()
+            primary_text = data.get("primary_text", "").strip()
+            if headline and primary_text:
+                return headline, primary_text
+        except json.JSONDecodeError:
+            # Fallback: Remove markdown code blocks if present (legacy format)
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
+            
+            # Try parsing again after removing markdown
+            data = json.loads(text)
+            headline = data.get("headline", "").strip()
+            primary_text = data.get("primary_text", "").strip()
+            if headline and primary_text:
+                return headline, primary_text
+                
     except Exception as e:
         logger.warning(f"Failed to parse LLM response as JSON: {e}")
     
-    # Fallback: try to extract from plain text
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    # Final fallback: try to extract from plain text
+    lines = [line.strip() for line in llm_response.split("\n") if line.strip()]
     if len(lines) >= 2:
         return lines[0], " ".join(lines[1:])
     

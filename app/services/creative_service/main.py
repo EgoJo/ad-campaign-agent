@@ -178,7 +178,7 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
                         "prompt": image_prompt_prompt
                     })
                     
-                    # Step 4b: Call LLM for copy
+                    # Step 4b: Call LLM for copy with JSON Mode for structured output
                     logger.debug(f"Calling LLM for copy generation (variant {variant})")
                     debug_info["execution_steps"].append({
                         "step": "call_llm_copy",
@@ -188,7 +188,16 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
                         "timestamp": datetime.now().isoformat()
                     })
                     
-                    copy_response = call_gemini_text(copy_prompt)
+                    # Define JSON schema for copy response (JSON Mode)
+                    copy_schema = {
+                        "type": "object",
+                        "properties": {
+                            "headline": {"type": "string"},
+                            "primary_text": {"type": "string"}
+                        },
+                        "required": ["headline", "primary_text"]
+                    }
+                    copy_response = call_gemini_text(copy_prompt, response_schema=copy_schema)
                     copy_llm_success = copy_response is not None and len(copy_response) > 0
                     
                     debug_info["raw_llm_responses"].append({

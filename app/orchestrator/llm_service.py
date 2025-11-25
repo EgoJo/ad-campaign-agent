@@ -116,44 +116,76 @@ class OrchestratorResponse(BaseModel):
     retry=retry_if_exception_type((Exception,)),
     reraise=True
 )
-def _call_gemini_with_retry(prompt: str, temperature: float = 0.3, max_tokens: int = 500):
-    """Internal function to call Gemini API with retry logic."""
+def _call_gemini_with_retry(
+    prompt: str, 
+    temperature: float = 0.3, 
+    max_tokens: int = 500,
+    response_schema: Optional[Dict[str, Any]] = None
+):
+    """
+    Internal function to call Gemini API with retry logic and structured output support.
+    
+    Args:
+        prompt: Prompt string
+        temperature: Sampling temperature
+        max_tokens: Maximum output tokens
+        response_schema: Optional JSON schema for structured output (JSON Mode)
+    """
     if not gemini_model:
         raise HTTPException(
             status_code=500,
             detail="GEMINI_API_KEY not configured. Please set GEMINI_API_KEY environment variable."
         )
     
+    generation_config = genai.types.GenerationConfig(
+        temperature=temperature,
+        max_output_tokens=max_tokens,
+    )
+    
+    # Use response_schema for structured output (JSON Mode)
+    if response_schema:
+        generation_config.response_schema = response_schema
+        generation_config.response_mime_type = "application/json"
+    
     response = gemini_model.generate_content(
         prompt,
-        generation_config=genai.types.GenerationConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens
-        )
+        generation_config=generation_config
     )
+    
+    # If using JSON mode, response.text is already valid JSON
     return response.text if response and response.text else None
 
 
 def parse_user_intent(user_request: str) -> CampaignSpec:
     """
-    使用LLM解析用户意图并生成CampaignSpec（带重试机制）
+    使用LLM解析用户意图并生成CampaignSpec（使用JSON Mode强制结构化输出）
     """
     try:
-        prompt = f"{AGENT_PROMPT}\n\nParse this campaign request into CampaignSpec JSON:\n\n{user_request}"
-        content = _call_gemini_with_retry(prompt, temperature=0.3, max_tokens=500)
+        # Get JSON schema from Pydantic model
+        campaign_spec_schema = CampaignSpec.model_json_schema()
+        
+        prompt = f"{AGENT_PROMPT}\n\nParse this campaign request into CampaignSpec JSON:\n\n{user_request}\n\nReturn ONLY valid JSON matching the schema."
+        
+        # Use JSON Mode with response_schema for guaranteed structured output
+        content = _call_gemini_with_retry(
+            prompt, 
+            temperature=0.3, 
+            max_tokens=500,
+            response_schema=campaign_spec_schema
+        )
         
         if not content:
             raise ValueError("Empty response from Gemini API")
         
-        # 提取JSON（可能被包裹在markdown代码块中）
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        
+        # With JSON Mode, response is already valid JSON (no markdown wrapping)
         spec_dict = json.loads(content)
         return CampaignSpec(**spec_dict)
         
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid JSON response from LLM: {str(e)}. Please try again."
+        )
     except Exception as e:
         raise HTTPException(
             status_code=400,
