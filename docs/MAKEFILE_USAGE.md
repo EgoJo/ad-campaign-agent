@@ -92,8 +92,8 @@ Poetry 的优势：
 
 | 旧命令 | 新命令 |
 |--------|--------|
-| `./start_services.sh` | `make start-services` |
-| `./stop_services.sh` | `make stop-services` |
-| `./start_orchestrator_llm.sh` | `make start-orchestrator` |
-| `./stop_orchestrator.sh` | `make stop-orchestrator` |
+| `./start_services.sh` | `make start-services` 或 `./scripts/start_services.sh` |
+| `./stop_services.sh` | `make stop-services` 或 `./scripts/stop_services.sh` |
+| `./start_orchestrator_llm.sh` | `make start-orchestrator` 或 `./scripts/start_orchestrator_llm.sh` |
+| `./stop_orchestrator.sh` | `make stop-orchestrator` 或 `./scripts/stop_orchestrator.sh` |
 

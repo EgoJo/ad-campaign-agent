@@ -82,19 +82,19 @@ clean:
 # Service management
 start-services:
 	@echo "Starting all microservices..."
-	@bash start_services.sh
+	@bash scripts/start_services.sh
 
 stop-services:
 	@echo "Stopping all microservices..."
-	@bash stop_services.sh
+	@bash scripts/stop_services.sh
 
 start-orchestrator:
 	@echo "Starting orchestrator..."
-	@bash start_orchestrator_llm.sh
+	@bash scripts/start_orchestrator_llm.sh
 
 stop-orchestrator:
 	@echo "Stopping orchestrator..."
-	@bash stop_orchestrator.sh
+	@bash scripts/stop_orchestrator.sh
 
 restart-all: stop-services stop-orchestrator
 	@sleep 2

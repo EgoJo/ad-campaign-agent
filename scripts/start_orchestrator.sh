@@ -26,7 +26,7 @@ done
 if [ "$services_ok" = false ]; then
     echo ""
     echo "⚠️  Some MCP services are not running!"
-    echo "Please start all MCP services first: ./start_services.sh"
+    echo "Please start all MCP services first: make start-services (or ./scripts/start_services.sh)"
     echo ""
     read -p "Continue anyway? (y/N) " -n 1 -r
     echo

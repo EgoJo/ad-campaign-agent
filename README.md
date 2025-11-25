@@ -13,35 +13,54 @@ This system uses a **microservices architecture** with an orchestrator agent tha
 
 | Service | Port | Description | Startup Script |
 |---------|------|-------------|----------------|
-| **product_service** | 8001 | Selects optimal products for campaigns | `./start_services.sh` |
-| **creative_service** | 8002 | Generates ad creatives (text, images) | `./start_services.sh` |
-| **strategy_service** | 8003 | Creates campaign strategies and budget allocation | `./start_services.sh` |
-| **meta_service** | 8004 | Deploys campaigns to Meta platforms | `./start_services.sh` |
-| **logs_service** | 8005 | Logs events for auditing and monitoring | `./start_services.sh` |
-| **schema_validator_service** | 8006 | Validates data structures | `./start_services.sh` |
-| **optimizer_service** | 8007 | Analyzes performance and suggests optimizations | `./start_services.sh` |
-| **orchestrator_agent** | 8000 | Coordinates all services | `./start_orchestrator.sh` or `./start_orchestrator_llm.sh` |
+| **product_service** | 8001 | Selects optimal products for campaigns | `make start-services` or `./scripts/start_services.sh` |
+| **creative_service** | 8002 | Generates ad creatives (text, images) | `make start-services` or `./scripts/start_services.sh` |
+| **strategy_service** | 8003 | Creates campaign strategies and budget allocation | `make start-services` or `./scripts/start_services.sh` |
+| **meta_service** | 8004 | Deploys campaigns to Meta platforms | `make start-services` or `./scripts/start_services.sh` |
+| **logs_service** | 8005 | Logs events for auditing and monitoring | `make start-services` or `./scripts/start_services.sh` |
+| **optimizer_service** | 8007 | Analyzes performance and suggests optimizations | `make start-services` or `./scripts/start_services.sh` |
+| **orchestrator_agent** | 8000 | Coordinates all services | `make start-orchestrator` or `./scripts/start_orchestrator_llm.sh` |
 
 ## Project Structure
 
 ```
 ad-campaign-agent/
-├── app/
-│   ├── orchestrator/           # Orchestrator agent configuration
-│   │   ├── agent_prompt.md     # Agent system prompt
-│   │   ├── agent_config.yaml   # ADK tool definitions
-│   │   └── clients/            # HTTP clients for each MCP service
+├── app/                        # Application code
+│   ├── orchestrator/           # Orchestrator agent
+│   │   ├── agent_prompt.md    # Agent system prompt
+│   │   ├── agent_config.yaml  # ADK tool definitions
+│   │   └── clients/           # HTTP clients for MCP services
 │   ├── services/               # MCP microservices
 │   │   ├── product_service/
 │   │   ├── creative_service/
 │   │   ├── strategy_service/
 │   │   ├── meta_service/
 │   │   ├── logs_service/
-│   │   ├── schema_validator_service/
 │   │   └── optimizer_service/
 │   └── common/                 # Shared utilities
-│       ├── config.py           # Configuration management
-│       └── http_client.py      # HTTP client base class
+│       ├── config.py          # Configuration management
+│       ├── http_client.py     # HTTP client (sync & async)
+│       ├── schemas.py         # Unified data models
+│       └── validators.py      # Local validation utilities
+├── docs/                       # Documentation
+│   ├── CONFIGURATION.md
+│   ├── DEPLOYMENT_REPORT.md
+│   ├── LLM_ORCHESTRATOR.md
+│   ├── MAKEFILE_USAGE.md
+│   ├── OPTIMIZATIONS.md
+│   ├── PROJECT_SUMMARY.md
+│   └── QUICKSTART.md
+├── scripts/                     # Shell scripts (backup to Makefile)
+│   ├── start_services.sh
+│   ├── stop_services.sh
+│   ├── start_orchestrator.sh
+│   ├── start_orchestrator_llm.sh
+│   └── stop_orchestrator.sh
+├── tests/                       # Test suite
+├── examples/                    # Example usage
+├── logs/                        # Service logs
+├── Makefile                     # Unified command management
+├── pyproject.toml              # Poetry configuration
 ├── requirements.txt            # Python dependencies
 ├── docker-compose.yml          # Docker orchestration
 ├── Dockerfile                  # Container definition
@@ -100,14 +119,14 @@ ad-campaign-agent/
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Step 1: Start 7 MCP Services (Ports 8001-8007)        │
-│  ./start_services.sh                                     │
+│  make start-services                                     │
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
 │  Step 2: Start Orchestrator Agent (Port 8000)           │
 │  Choose one:                                            │
-│  • ./start_orchestrator.sh (Simple Mode)                │
-│  • ./start_orchestrator_llm.sh (LLM Mode)                │
+│  • make start-orchestrator (Simple Mode)                │
+│  • make start-orchestrator (LLM Mode)                │
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -122,7 +141,7 @@ ad-campaign-agent/
 Start all 7 microservices using the startup script:
 
 ```bash
-./start_services.sh
+make start-services
 ```
 
 This will start all services in the background:
@@ -149,7 +168,7 @@ Choose one of two modes:
 #### Option A: Simple Mode (Recommended for beginners)
 
 ```bash
-./start_orchestrator.sh
+make start-orchestrator
 ```
 
 - Uses structured API calls
@@ -159,7 +178,7 @@ Choose one of two modes:
 #### Option B: LLM-Enhanced Mode (Natural Language Processing)
 
 ```bash
-./start_orchestrator_llm.sh
+make start-orchestrator
 ```
 
 - Accepts natural language input
@@ -186,15 +205,15 @@ python demo_workflow.py
 
 ```bash
 # 1. Start all MCP services
-./start_services.sh
+make start-services
 
 # 2. Wait a few seconds for services to initialize
 sleep 3
 
 # 3. Start orchestrator (choose one)
-./start_orchestrator.sh          # Simple mode
+make start-orchestrator          # Simple mode
 # OR
-./start_orchestrator_llm.sh      # LLM mode
+make start-orchestrator      # LLM mode
 
 # 4. Verify everything is running
 curl http://localhost:8000/health
@@ -205,10 +224,10 @@ curl http://localhost:8000/services/status
 
 ```bash
 # Stop orchestrator
-./stop_orchestrator.sh
+make stop-orchestrator
 
 # Stop all MCP services
-./stop_services.sh
+make stop-services
 ```
 
 ## Alternative Startup Methods
@@ -442,7 +461,7 @@ export GEMINI_API_KEY=your_gemini_api_key_here
 export GEMINI_MODEL=gemini-2.0-flash-exp
 ```
 
-**See [CONFIGURATION.md](CONFIGURATION.md) for detailed configuration guide.**
+**See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed configuration guide.**
 
 ### Key Environment Variables
 
@@ -495,8 +514,8 @@ This is a starting scaffold. Customize it for your specific needs:
 lsof -ti:8000 | xargs kill
 
 # Or use the stop scripts
-./stop_orchestrator.sh
-./stop_services.sh
+make stop-orchestrator
+make stop-services
 ```
 
 ### Services Not Responding
@@ -536,13 +555,13 @@ echo "GEMINI_API_KEY=your_key_here" >> .env
 
 ```bash
 # Start all services
-./start_services.sh              # Start 7 MCP services
-./start_orchestrator.sh          # Start orchestrator (simple mode)
-./start_orchestrator_llm.sh     # Start orchestrator (LLM mode)
+make start-services              # Start 7 MCP services
+make start-orchestrator          # Start orchestrator (simple mode)
+make start-orchestrator     # Start orchestrator (LLM mode)
 
 # Stop services
-./stop_services.sh               # Stop all MCP services
-./stop_orchestrator.sh           # Stop orchestrator
+make stop-services               # Stop all MCP services
+make stop-orchestrator           # Stop orchestrator
 
 # Check status
 curl http://localhost:8000/health
@@ -563,8 +582,8 @@ python test_all_services.py
 
 ## Additional Documentation
 
-- **[QUICKSTART.md](QUICKSTART.md)** - 5-minute quick start guide
-- **[CONFIGURATION.md](CONFIGURATION.md)** - Detailed configuration guide
+- **[docs/QUICKSTART.md](docs/QUICKSTART.md)** - 5-minute quick start guide
+- **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** - Detailed configuration guide
 - **[LLM_ORCHESTRATOR.md](LLM_ORCHESTRATOR.md)** - LLM orchestrator documentation
 
 ## Support
@@ -573,4 +592,4 @@ For issues or questions:
 1. Check the troubleshooting section above
 2. Review service logs in `logs/` directory
 3. Refer to TODO comments in the code for implementation guidance
-4. Check the [CONFIGURATION.md](CONFIGURATION.md) for environment setup
+4. Check the [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for environment setup

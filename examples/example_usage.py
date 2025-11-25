@@ -188,7 +188,7 @@ def create_campaign_example():
 
 if __name__ == "__main__":
     print("\nMake sure all services are running before executing this script!")
-    print("Run: ./start_services.sh\n")
+    print("Run: make start-services (or ./scripts/start_services.sh)\n")
     
     try:
         campaign_id = create_campaign_example()
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nFailed to create campaign: {e}")
         print("\nTroubleshooting:")
-        print("1. Ensure all services are running (./start_services.sh)")
+        print("1. Ensure all services are running (make start-services)")
         print("2. Check service logs in the logs/ directory")
         print("3. Verify .env configuration")
         sys.exit(1)

@@ -29,8 +29,8 @@ flake8 = "^7.1.1"
 mypy = "^1.13.0"
 
 [tool.poetry.scripts]
-start-services = "bash start_services.sh"
-start-orchestrator = "bash start_orchestrator_llm.sh"
+start-services = "bash scripts/start_services.sh"
+start-orchestrator = "bash scripts/start_orchestrator_llm.sh"
 
 [build-system]
 requires = ["poetry-core"]
