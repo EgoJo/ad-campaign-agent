@@ -6,12 +6,22 @@ Handles database operations for log events.
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy import and_, func
-from app.common.db import get_db_session, is_db_available
-from app.common.models import LogEventORM
+from app.common.db import get_db_session, is_db_available, SQLALCHEMY_AVAILABLE
 from app.common.middleware import get_logger
 
 logger = get_logger(__name__)
+
+# Try to import SQLAlchemy (optional dependency)
+if SQLALCHEMY_AVAILABLE:
+    try:
+        from sqlalchemy import and_, func
+        from app.common.models import LogEventORM
+    except ImportError:
+        LogEventORM = None
+        func = None
+else:
+    LogEventORM = None
+    func = None
 
 
 class LogEventRepository:
@@ -44,7 +54,7 @@ class LogEventRepository:
         Returns:
             Event ID (UUID string) if successful, None otherwise
         """
-        if not is_db_available() or LogEventORM is None:
+        if not is_db_available() or not SQLALCHEMY_AVAILABLE or LogEventORM is None:
             logger.warning("Database not available, skipping log event persistence")
             return None
         
@@ -103,7 +113,7 @@ class LogEventRepository:
         Returns:
             Tuple of (list of log events as dicts, total count)
         """
-        if not is_db_available() or LogEventORM is None:
+        if not is_db_available() or not SQLALCHEMY_AVAILABLE or LogEventORM is None:
             logger.warning("Database not available, returning empty results")
             return [], 0
         
@@ -173,7 +183,7 @@ class LogEventRepository:
         Returns:
             Dictionary with by_stage, by_service, and levels counts
         """
-        if not is_db_available() or LogEventORM is None:
+        if not is_db_available() or not SQLALCHEMY_AVAILABLE or LogEventORM is None or func is None:
             logger.warning("Database not available, returning empty analytics")
             return {
                 "by_stage": {},
