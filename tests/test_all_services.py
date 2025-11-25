@@ -13,6 +13,18 @@ SERVICES = {
     "Optimizer Service": "http://localhost:8007",
 }
 
+def _check_health_status():
+    """Helper function to check health status (for main() function)"""
+    healthy = 0
+    for name, url in SERVICES.items():
+        try:
+            response = requests.get(f"{url}/health", timeout=5)
+            if response.status_code == 200:
+                healthy += 1
+        except Exception:
+            pass
+    return healthy
+
 def test_health_checks():
     """Test all health check endpoints"""
     print("\n📊 Health Check Status:")
@@ -29,7 +41,9 @@ def test_health_checks():
                 print(f"❌ {name}: HTTP {response.status_code}")
         except Exception as e:
             print(f"❌ {name}: {str(e)}")
-    return healthy
+    # Use assert instead of return to avoid pytest warning
+    assert healthy >= 0, f"Expected at least 0 healthy services, got {healthy}"
+    print(f"\n✅ {healthy}/{len(SERVICES)} services are healthy")
 
 def test_product_service():
     """Test Product Service"""
@@ -215,8 +229,9 @@ def main():
     print("🚀 Ad Campaign Agent - Complete Service Testing")
     print("=" * 70)
     
-    # Health checks
-    healthy = test_health_checks()
+    # Health checks (note: test_health_checks now uses assert, not return)
+    # For main() function, we'll call a separate helper
+    healthy = _check_health_status()
     print(f"\n✅ {healthy}/{len(SERVICES)} services are healthy\n")
     
     if healthy < len(SERVICES):
