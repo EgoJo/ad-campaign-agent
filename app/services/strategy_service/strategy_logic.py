@@ -459,20 +459,12 @@ def generate_abstract_strategy(
     Returns:
         AbstractStrategy object
     """
-    # Create budget split by variant (A, B, C)
-    budget_split = {}
-    creative_allocation = budget_plan.get("creative_allocation", {})
-    
-    # Group by variant
-    variant_budgets = {}
-    for creative_id, budget in creative_allocation.items():
-        # Extract variant from creative (we need to pass creatives to this function)
-        # For now, use a simple split
-        pass
-    
-    # Simple split: 60% A, 40% B (if we had creatives, we'd calculate this)
-    # Default split
-    budget_split = {"A": 0.6, "B": 0.4}
+    # Use variant_split from budget_plan if available (calculated from creatives in main.py)
+    if "variant_split" in budget_plan:
+        budget_split = budget_plan["variant_split"]
+    else:
+        # Default split if no creatives provided
+        budget_split = {"A": 0.6, "B": 0.4}
     
     return AbstractStrategy(
         objective=campaign_spec.objective,
