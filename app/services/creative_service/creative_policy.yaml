@@ -1,5 +1,6 @@
 # Creative Policy Configuration
 # Defines style profiles for different product categories and platforms
+# Used by creative_service to generate platform-specific ad creatives
 
 default:
   copy_style: "direct_response"
@@ -7,6 +8,8 @@ default:
   tone: "professional"
   headline_style: "benefit_focused"
   primary_text_length: "medium"  # short, medium, long
+  max_primary_text_len: 180
+  max_headline_len: 60
 
 toys:
   copy_style: "playful"
@@ -14,6 +17,8 @@ toys:
   tone: "energetic"
   headline_style: "question_or_exclamation"
   primary_text_length: "short"
+  max_primary_text_len: 200
+  max_headline_len: 60
 
 electronics:
   copy_style: "technical_benefit"
@@ -28,6 +33,8 @@ fashion:
   tone: "sophisticated"
   headline_style: "emotional"
   primary_text_length: "short"
+  max_primary_text_len: 150
+  max_headline_len: 50
 
 food:
   copy_style: "sensory_appeal"

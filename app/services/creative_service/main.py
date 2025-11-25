@@ -10,14 +10,14 @@ This service generates creative content (text, images) for ad campaigns using:
 """
 
 from fastapi import FastAPI
-from typing import Union, Dict, Optional
+from typing import Union, Dict, Optional, List
 from datetime import datetime
 import uuid
 from app.common.middleware import setup_logging, RequestIDMiddleware, get_cors_middleware_class, get_logger
 from app.common.config import settings
 from app.common.exceptions import register_exception_handlers
 
-from .schemas import GenerateCreativesRequest, GenerateCreativesResponse
+from .schemas import GenerateCreativesRequest, GenerateCreativesResponse, ABConfig
 from app.common.schemas import Creative, ErrorResponse
 from .creative_utils import (
     load_creative_policy,
@@ -91,11 +91,20 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
                 details={}
             )
         
-        # Step 2: Load policy
+        # Step 2: Parse ab_config (with defaults)
+        ab_config = request.ab_config or ABConfig()
+        variants_per_product = ab_config.variants_per_product
+        max_creatives = ab_config.max_creatives
+        enable_image_generation = ab_config.enable_image_generation
+        
+        logger.info(f"A/B config: {variants_per_product} variants/product, max {max_creatives} creatives, "
+                   f"image_gen={enable_image_generation}")
+        
+        # Step 3: Load policy
         policy = load_creative_policy()
         logger.debug(f"Loaded policy with categories: {list(policy.keys())}")
         
-        # Step 3: Initialize debug info
+        # Step 4: Initialize debug info
         # Check LLM configuration status
         import os
         from app.common.config import settings
@@ -138,12 +147,19 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
         
         all_creatives: List[Creative] = []
         
-        # Step 4: Generate creatives for each product
+        # Step 5: Generate creatives for each product
+        variant_labels = ["A", "B", "C", "D", "E"][:variants_per_product]
+        
         for product in request.products:
+            # Check if we've reached max_creatives limit
+            if len(all_creatives) >= max_creatives:
+                logger.info(f"Reached max_creatives limit ({max_creatives}), stopping generation")
+                break
+            
             logger.info(f"Processing product: {product.product_id} - {product.title}")
             
-            # Generate at least 2 variants (A and B)
-            variants = ["A", "B"]
+            # Generate variants for this product
+            variants = variant_labels[:variants_per_product]
             
             for variant in variants:
                 try:
@@ -270,13 +286,18 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
                         image_description = f"Professional product photography of {product.title}, {get_policy_for_category(product.category, policy).get('visual_style', 'clean')} style"
                     
                     # Step 4d: Optionally call image generator
-                    logger.debug(f"Calling image generator for variant {variant}")
-                    image_url = call_gemini_image(image_description)
-                    image_generator_success = image_url is not None and len(image_url) > 0
-                    
-                    if not image_url:
-                        logger.debug(f"Image generator returned no URL for variant {variant}, using fallback")
+                    if enable_image_generation:
+                        logger.debug(f"Calling image generator for variant {variant}")
+                        image_url = call_gemini_image(image_description)
+                        image_generator_success = image_url is not None and len(image_url) > 0
+                        
+                        if not image_url:
+                            logger.debug(f"Image generator returned no URL for variant {variant}, using fallback")
+                            image_url = fallback_image_url(product)
+                    else:
+                        logger.debug(f"Image generation disabled, using fallback")
                         image_url = fallback_image_url(product)
+                        image_generator_success = False
                     
                     # Record image generation debug info
                     debug_info["image_generation"].append({
@@ -318,12 +339,21 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
                     all_creatives.append(creative)
                     logger.info(f"Generated creative {creative.creative_id} for variant {variant}")
                     
+                    # Check if we've reached max_creatives limit
+                    if len(all_creatives) >= max_creatives:
+                        logger.info(f"Reached max_creatives limit ({max_creatives})")
+                        break
+                    
                 except Exception as e:
-                    logger.error(f"Error generating creative for variant {variant}: {e}")
+                    logger.error(f"Error generating creative for variant {variant}: {e}", exc_info=True)
                     # Continue with next variant
                     continue
+            
+            # Break outer loop if we've reached max_creatives
+            if len(all_creatives) >= max_creatives:
+                break
         
-        # Step 5: Check if we have any creatives
+        # Step 6: Check if we have any creatives
         if not all_creatives:
             logger.error("No creatives generated")
             return ErrorResponse(
@@ -333,14 +363,16 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
                 details={"products_processed": len(request.products)}
             )
         
-        # Step 6: Build response
+        # Step 7: Build response
         logger.info(f"Successfully generated {len(all_creatives)} creatives")
         
         # Add summary to debug info
         debug_info["summary"] = {
             "total_creatives_generated": len(all_creatives),
             "total_products_processed": len(request.products),
-            "total_variants_expected": len(request.products) * 2,
+            "variants_per_product": variants_per_product,
+            "max_creatives_limit": max_creatives,
+            "image_generation_enabled": enable_image_generation,
             "llm_available": gemini_api_key is not None and len(gemini_api_key) > 0,
             "execution_completed": True,
             "timestamp": datetime.now().isoformat()
@@ -356,13 +388,26 @@ async def generate_creatives(request: GenerateCreativesRequest) -> Union[Generat
             "success_rate": len(successful_llm_calls) / len(llm_calls) if llm_calls else 0
         }
         
+        # Add policy information to debug
+        debug_info["policy_used"] = {
+            "categories_available": list(policy.keys()),
+            "default_policy": policy.get("default", {}),
+            "products_processed": [
+                {
+                    "product_id": p.product_id,
+                    "category": p.category,
+                    "policy_applied": get_policy_for_category(p.category, policy)
+                }
+                for p in request.products
+            ]
+        }
+        
         # Convert Creative objects to dicts for Pydantic v2 compatibility
-        # Pydantic v2 requires dict format when constructing nested models in some cases
         creatives_dict = [creative.model_dump() for creative in all_creatives]
         
         return GenerateCreativesResponse(
             status="success",
-            creatives=creatives_dict,  # Use dict format for Pydantic v2
+            creatives=creatives_dict,
             debug=debug_info
         )
         

@@ -7,10 +7,18 @@ from typing import List, Dict, Optional
 from app.common.schemas import CampaignSpec, Product, Creative, ErrorResponse
 
 
+class ABConfig(BaseModel):
+    """A/B testing configuration for creative generation."""
+    variants_per_product: int = Field(default=2, ge=1, le=5, description="Number of variants per product (A, B, C, etc.)")
+    max_creatives: int = Field(default=10, ge=1, le=50, description="Maximum total number of creatives to generate")
+    enable_image_generation: bool = Field(default=True, description="Whether to attempt image generation via API")
+
+
 class GenerateCreativesRequest(BaseModel):
     """Request to generate creative content."""
     campaign_spec: CampaignSpec = Field(..., description="Campaign specification")
     products: List[Product] = Field(..., description="List of products to generate creatives for")
+    ab_config: Optional[ABConfig] = Field(default=None, description="A/B testing configuration (optional)")
 
 
 class GenerateCreativesResponse(BaseModel):

@@ -162,7 +162,7 @@ def build_image_prompt(product, campaign_spec, policy: Dict, variant: str) -> st
         product: Product object
         campaign_spec: CampaignSpec object
         policy: Policy rules for the category
-        variant: Variant ID ("A" or "B")
+        variant: Variant ID ("A", "B", "C", etc.)
         
     Returns:
         Prompt string for image generation
@@ -170,25 +170,41 @@ def build_image_prompt(product, campaign_spec, policy: Dict, variant: str) -> st
     category_policy = get_policy_for_category(product.category, policy)
     
     variant_styles = {
-        "A": "product-focused, clean background, professional lighting",
-        "B": "lifestyle context, natural setting, emotional connection"
+        "A": "product-focused, clean background, professional studio lighting, minimalist composition",
+        "B": "lifestyle context, natural setting, emotional connection, people using the product",
+        "C": "dynamic action shot, vibrant colors, energetic atmosphere, product in use",
+        "D": "comparison or before/after style, problem-solving visual, clear benefits shown",
+        "E": "aspirational lifestyle, premium aesthetic, sophisticated composition, luxury feel"
     }
     
     variant_style = variant_styles.get(variant, variant_styles["A"])
+    visual_style = category_policy.get('visual_style', 'clean_product_focus')
     
-    prompt = f"""Generate a detailed image prompt for advertising photography.
+    prompt = f"""You are a professional advertising photographer creating an image brief for a {campaign_spec.platform} ad campaign.
 
 Product: {product.title}
+Product Description: {product.description}
 Category: {product.category}
-Visual Style: {category_policy.get('visual_style', 'clean_product_focus')}
-Variant Style: {variant_style}
-Platform: {campaign_spec.platform}
+Price: ${product.price:.2f}
 
-Generate a concise image description (2-3 sentences) suitable for image generation.
-Focus on: composition, lighting, mood, colors, and key visual elements.
-Do not include product name or text overlays in the description.
+Campaign Context:
+- Platform: {campaign_spec.platform}
+- Objective: {campaign_spec.objective}
+- Visual Style: {visual_style}
+- Variant Style: {variant_style}
 
-Return ONLY the image description text, no JSON, no markdown, just the description."""
+Requirements:
+1. Create a detailed image description (2-3 sentences) suitable for professional product photography or AI image generation
+2. Focus on: composition, lighting, mood, colors, background, and key visual elements
+3. Match the visual style: {visual_style}
+4. Match the variant approach: {variant_style}
+5. Platform-appropriate: {campaign_spec.platform} ads typically use {visual_style} style
+6. Do NOT include product name, text overlays, or written content in the description
+7. Focus on visual elements that will make the ad compelling and conversion-focused
+
+Generate a concise, professional image description that can be used for image generation or photography direction.
+
+Return ONLY the image description text, no JSON, no markdown, no explanations, just the description."""
     
     return prompt
 
@@ -273,20 +289,37 @@ def call_gemini_image(image_prompt: str) -> Optional[str]:
     """
     Call Gemini Image API for image generation (if available).
     
+    Note: Gemini API doesn't have native image generation like DALL-E.
+    This function can integrate with:
+    - Google's Imagen API (if available)
+    - Alternative image generation services
+    - Or return None to use fallback placeholder URLs
+    
     Args:
         image_prompt: Image description prompt
         
     Returns:
         Image URL or None if not available/error
     """
+    # Check if image generation is enabled via API key
     if not gemini_image_api_key:
         logger.debug("GEMINI_IMAGE_API_KEY not set, skipping image generation")
         return None
     
-    # Note: Gemini doesn't have a direct image generation API like DALL-E
-    # This is a placeholder for future integration or alternative services
-    # For now, return None to use fallback image URLs
-    logger.debug("Image generation API not yet implemented")
+    # Option 1: If using Google Imagen API (when available)
+    # This is a placeholder for future Imagen integration
+    # try:
+    #     # Imagen API call would go here
+    #     # response = imagen_client.generate_image(prompt=image_prompt)
+    #     # return response.image_url
+    #     pass
+    # except Exception as e:
+    #     logger.warning(f"Imagen API error: {e}")
+    #     return None
+    
+    # Option 2: Use alternative image generation service
+    # For now, return None to trigger fallback
+    logger.debug("Image generation via API not yet implemented, using fallback")
     return None
 
 
@@ -387,6 +420,8 @@ def fallback_text_generation(product, campaign_spec, variant: str) -> Tuple[str,
     """
     Generate fallback text when LLM fails.
     
+    Uses safe, generic templates that comply with advertising policies.
+    
     Args:
         product: Product object
         campaign_spec: CampaignSpec object
@@ -395,12 +430,45 @@ def fallback_text_generation(product, campaign_spec, variant: str) -> Tuple[str,
     Returns:
         Tuple of (headline, primary_text)
     """
-    if variant == "A":
-        headline = f"Discover {product.title}"
-        primary_text = f"{product.description[:100]}... Get yours today for ${product.price}!"
+    # Get locale for language-specific fallbacks
+    locale = campaign_spec.metadata.get("locale", "en_US") if campaign_spec.metadata else "en_US"
+    is_chinese = locale.startswith("zh")
+    
+    if is_chinese:
+        # Chinese fallback templates
+        if variant == "A":
+            headline = f"{product.title} 限时优惠"
+            primary_text = f"高性价比的{product.title}，现在下单享受优惠。{product.description[:80]}..."
+        elif variant == "B":
+            headline = f"发现 {product.title}"
+            primary_text = f"体验{product.title}带来的改变。{product.description[:80]}... 立即购买，仅需${product.price:.2f}。"
+        else:
+            headline = f"{product.title} 热销中"
+            primary_text = f"{product.description[:100]}... 现在购买，享受特价${product.price:.2f}。"
     else:
-        headline = f"Transform Your Life with {product.title}"
-        primary_text = f"Experience the difference. {product.description[:80]}... Limited time offer at ${product.price}."
+        # English fallback templates
+        if variant == "A":
+            headline = f"Discover {product.title}"
+            primary_text = f"{product.description[:100]}... Get yours today for ${product.price:.2f}!"
+        elif variant == "B":
+            headline = f"Transform Your Life with {product.title}"
+            primary_text = f"Experience the difference. {product.description[:80]}... Limited time offer at ${product.price:.2f}."
+        else:
+            headline = f"{product.title} - Special Offer"
+            primary_text = f"{product.description[:100]}... Shop now and save! Only ${product.price:.2f}."
+    
+    # Ensure length constraints (platform-specific)
+    platform_max = {
+        "meta": {"headline": 40, "primary": 125},
+        "tiktok": {"headline": 80, "primary": 220},
+        "google": {"headline": 30, "primary": 90}
+    }
+    limits = platform_max.get(campaign_spec.platform, platform_max["meta"])
+    
+    if len(headline) > limits["headline"]:
+        headline = headline[:limits["headline"]-3] + "..."
+    if len(primary_text) > limits["primary"]:
+        primary_text = primary_text[:limits["primary"]-3] + "..."
     
     return headline, primary_text
 
@@ -409,6 +477,8 @@ def fallback_image_url(product) -> str:
     """
     Generate fallback image URL.
     
+    Uses deterministic placeholder URLs based on product ID for consistency.
+    
     Args:
         product: Product object
         
@@ -416,9 +486,14 @@ def fallback_image_url(product) -> str:
         Placeholder image URL
     """
     # Use product image if available
-    if product.image_url:
+    if product.image_url and product.image_url.startswith(("http://", "https://")):
         return product.image_url
     
-    # Return placeholder service URL
-    return f"https://via.placeholder.com/1200x630?text={product.title.replace(' ', '+')}"
+    # Use deterministic placeholder based on product ID
+    # This ensures the same product always gets the same placeholder image
+    import hashlib
+    product_hash = hashlib.md5(product.product_id.encode()).hexdigest()[:8]
+    
+    # Use picsum.photos with seed for deterministic images
+    return f"https://picsum.photos/seed/{product_hash}/1200/630"
 
