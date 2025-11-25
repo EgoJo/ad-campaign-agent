@@ -317,8 +317,12 @@ class TestCreativeUtils:
             metadata={}
         )
         url = fallback_image_url(product)
-        assert url.startswith("http")
-        assert "placeholder" in url or "Test+Product" in url
+        # New implementation uses picsum.photos with deterministic seed based on product_id
+        assert url.startswith("https://picsum.photos/seed/")
+        assert "1200/630" in url  # Image dimensions
+        # Verify it's deterministic (same product_id should give same URL)
+        url2 = fallback_image_url(product)
+        assert url == url2
 
 
 class TestSchemas:
