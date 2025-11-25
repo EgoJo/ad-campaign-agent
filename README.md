@@ -19,7 +19,7 @@ This system uses a **microservices architecture** with an orchestrator agent tha
 | **meta_service** | 8004 | Deploys campaigns to Meta platforms | `make start-services` or `./scripts/start_services.sh` |
 | **logs_service** | 8005 | Logs events for auditing and monitoring | `make start-services` or `./scripts/start_services.sh` |
 | **optimizer_service** | 8007 | Analyzes performance and suggests optimizations | `make start-services` or `./scripts/start_services.sh` |
-| **orchestrator_agent** | 8000 | Coordinates all services | `make start-orchestrator` or `./scripts/start_orchestrator_llm.sh` |
+| **orchestrator_agent** | 8000 | Coordinates all services (LLM-enhanced) | `make start-orchestrator` or `./scripts/start_orchestrator_llm.sh` |
 
 ## Project Structure
 
@@ -43,13 +43,17 @@ ad-campaign-agent/
 │       ├── schemas.py         # Unified data models
 │       └── validators.py      # Local validation utilities
 ├── docs/                       # Documentation
-│   ├── CONFIGURATION.md
-│   ├── DEPLOYMENT_REPORT.md
-│   ├── LLM_ORCHESTRATOR.md
-│   ├── MAKEFILE_USAGE.md
-│   ├── OPTIMIZATIONS.md
-│   ├── PROJECT_SUMMARY.md
-│   └── QUICKSTART.md
+│   ├── API_DOCUMENTATION.md    # Complete API reference
+│   ├── CONFIGURATION.md        # Configuration guide
+│   ├── DEPLOYMENT_GUIDE.md     # Deployment instructions
+│   ├── DEPLOYMENT_REPORT.md    # Deployment report
+│   ├── DOCKER_COMPOSE_GUIDE.md # Docker Compose usage
+│   ├── LLM_ORCHESTRATOR.md     # LLM orchestrator guide
+│   ├── MAKEFILE_USAGE.md       # Makefile commands
+│   ├── OPTIMIZATION_RECOMMENDATIONS.md # Optimization suggestions
+│   ├── PROJECT_SUMMARY.md      # Project overview
+│   ├── QUICKSTART.md           # Quick start guide
+│   └── TROUBLESHOOTING.md      # Troubleshooting guide
 ├── scripts/                     # Shell scripts (backup to Makefile)
 │   ├── start_services.sh
 │   ├── stop_services.sh
@@ -144,19 +148,21 @@ Start all 7 microservices using the startup script:
 make start-services
 ```
 
-This will start all services in the background:
+This will start all 6 microservices in the background:
 - Product Service (port 8001)
 - Creative Service (port 8002)
 - Strategy Service (port 8003)
 - Meta Service (port 8004)
 - Logs Service (port 8005)
-- Schema Validator Service (port 8006)
 - Optimizer Service (port 8007)
 
 **Verify services are running:**
 ```bash
 # Check all services
-for port in 8001 8002 8003 8004 8005 8006 8007; do
+make health-check
+
+# Or manually
+for port in 8001 8002 8003 8004 8005 8007; do
   echo "Port $port: $(curl -s http://localhost:$port/health | grep -o '"service":"[^"]*"')"
 done
 ```
@@ -380,29 +386,47 @@ Each service contains `TODO` comments indicating where to add real implementatio
 
 ## API Documentation
 
-### MCP Services API Docs
+### Interactive API Docs
 
 Each service provides interactive Swagger/OpenAPI documentation:
 
+- **Orchestrator Agent**: http://localhost:8000/docs
 - **Product Service**: http://localhost:8001/docs
 - **Creative Service**: http://localhost:8002/docs
 - **Strategy Service**: http://localhost:8003/docs
 - **Meta Service**: http://localhost:8004/docs
 - **Logs Service**: http://localhost:8005/docs
-- **Schema Validator Service**: http://localhost:8006/docs
 - **Optimizer Service**: http://localhost:8007/docs
 
-### Orchestrator Agent API Docs
+### Complete API Reference
 
-- **Simple Mode**: http://localhost:8000/docs
-  - `POST /create_campaign` - Create campaign with structured input
-  - `POST /optimize_campaign` - Optimize existing campaign
-  - `GET /services/status` - Check all service statuses
+For detailed API documentation, see [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)
 
-- **LLM Mode**: http://localhost:8000/docs
+**Key Endpoints:**
+
+- **Orchestrator** (`http://localhost:8000`)
   - `POST /create_campaign_nl` - Create campaign from natural language
   - `POST /create_campaign` - Create campaign with structured input
   - `GET /services/status` - Check all service statuses
+  - `GET /health` - Health check
+
+- **Product Service** (`http://localhost:8001`)
+  - `POST /select_products` - Select products for campaign
+
+- **Creative Service** (`http://localhost:8002`)
+  - `POST /generate_creatives` - Generate ad creatives
+
+- **Strategy Service** (`http://localhost:8003`)
+  - `POST /generate_strategy` - Generate campaign strategy
+
+- **Meta Service** (`http://localhost:8004`)
+  - `POST /create_campaign` - Deploy campaign to Meta
+
+- **Logs Service** (`http://localhost:8005`)
+  - `POST /append_event` - Log events
+
+- **Optimizer Service** (`http://localhost:8007`)
+  - `POST /summarize_recent_runs` - Get optimization suggestions
 
 ## Development Guidelines
 
