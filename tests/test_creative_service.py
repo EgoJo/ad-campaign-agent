@@ -336,12 +336,14 @@ class TestSchemas:
         assert request.products[0].product_id == sample_products[0].product_id
     
     def test_generate_creatives_request_missing_products(self, sample_campaign_spec):
-        """Test request with missing products fails validation."""
-        with pytest.raises(Exception):  # Pydantic validation error
-            GenerateCreativesRequest(
-                campaign_spec=sample_campaign_spec,
-                products=[]
-            )
+        """Test request with missing products field fails validation."""
+        from pydantic import ValidationError
+        # Missing products field should raise ValidationError
+        with pytest.raises(ValidationError):
+            GenerateCreativesRequest.model_validate({
+                "campaign_spec": sample_campaign_spec.model_dump()
+                # Missing products field
+            })
     
     def test_creative_schema(self):
         """Test Creative schema validation."""
