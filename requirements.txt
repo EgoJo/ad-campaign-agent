@@ -14,6 +14,9 @@ tenacity==9.0.0
 # Google Generative AI (for orchestrator and future creative service use)
 google-generativeai==0.8.3
 
+# Optional LLM integrations (OpenAI support)
+openai==2.8.1
+
 # Environment variables
 python-dotenv==1.0.1
 
