@@ -98,7 +98,7 @@ cd /Users/xingbo.huang/code/ad-campaign/ad-campaign-agent
 
 ```bash
 # 方式1: 使用脚本（自动检测并行支持）
-./run_tests_with_progress.sh
+./scripts/run_tests_with_progress.sh
 
 # 方式2: 使用Makefile并行测试
 make test-parallel

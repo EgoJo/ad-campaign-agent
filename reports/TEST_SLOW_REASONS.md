@@ -153,7 +153,7 @@ make test-parallel
 ### 方式2: 使用优化脚本
 
 ```bash
-./run_tests_with_progress.sh
+./scripts/run_tests_with_progress.sh
 # 脚本会自动检测pytest-xdist并启用并行
 ```
 

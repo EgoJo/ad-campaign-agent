@@ -63,7 +63,7 @@ Human-Readable Campaign Result
 |---------|------|--------|-------------|----------------|
 | **product_service** | 8001 | ✅ **Implemented** | Selects optimal products for campaigns | **Real**: Database/CSV loading, rule-based scoring (category, price, description), priority grouping (high/medium/low) |
 | **strategy_service** | 8003 | ✅ **Implemented** | Creates campaign strategies and budget allocation | **Real**: Budget allocation algorithm, Meta audience targeting, bidding strategy selection, adset structure design |
-| **creative_service** | 8002 | 🟡 **Partial** | Generates ad creatives (text, images) | **Real**: LLM-powered copy generation (Gemini), image prompt generation, QA validation. **Mock**: Image generation API (fallback) |
+| **creative_service** | 8002 | ✅ **Implemented** | Generates ad creatives (text, images, videos) | **Real**: LLM-powered copy generation (OpenAI/Gemini), image generation (DALL-E 3/Gemini), video generation (Replicate), QA validation, A/B variants |
 | **meta_service** | 8004 | 🚧 **Mock** | Deploys campaigns to Meta platforms | **Mock**: Returns mock campaign IDs. **TODO**: Integrate Facebook Marketing API |
 | **logs_service** | 8005 | 🚧 **Mock** | Logs events for auditing and monitoring | **Mock**: In-memory event storage. **TODO**: Database persistence |
 | **optimizer_service** | 8007 | 🚧 **Mock** | Analyzes performance and suggests optimizations | **Mock**: Returns mock optimization suggestions. **TODO**: Real analytics integration |
@@ -82,6 +82,8 @@ ad-campaign-agent/
 │   ├── orchestrator/           # Orchestrator agent
 │   │   ├── agent_prompt.md    # Agent system prompt
 │   │   ├── agent_config.yaml  # ADK tool definitions
+│   │   ├── simple_service.py  # Simple orchestrator (structured API)
+│   │   ├── llm_service.py     # LLM-enhanced orchestrator
 │   │   └── clients/           # HTTP clients for MCP services
 │   ├── services/               # MCP microservices
 │   │   ├── product_service/
@@ -99,7 +101,6 @@ ad-campaign-agent/
 │   ├── API_DOCUMENTATION.md    # Complete API reference
 │   ├── CONFIGURATION.md        # Configuration guide
 │   ├── DEPLOYMENT_GUIDE.md     # Deployment instructions
-│   ├── DEPLOYMENT_REPORT.md    # Deployment report
 │   ├── DOCKER_COMPOSE_GUIDE.md # Docker Compose usage
 │   ├── LLM_ORCHESTRATOR.md     # LLM orchestrator guide
 │   ├── MAKEFILE_USAGE.md       # Makefile commands
@@ -107,17 +108,28 @@ ad-campaign-agent/
 │   ├── PROJECT_SUMMARY.md      # Project overview
 │   ├── QUICKSTART.md           # Quick start guide
 │   └── TROUBLESHOOTING.md      # Troubleshooting guide
-├── scripts/                     # Shell scripts (backup to Makefile)
-│   ├── start_services.sh
-│   ├── stop_services.sh
-│   ├── start_orchestrator.sh
-│   ├── start_orchestrator_llm.sh
-│   └── stop_orchestrator.sh
+├── scripts/                     # Utility scripts
+│   ├── start_services.sh       # Start all microservices
+│   ├── stop_services.sh        # Stop all microservices
+│   ├── start_orchestrator.sh  # Start simple orchestrator
+│   ├── start_orchestrator_llm.sh # Start LLM orchestrator
+│   ├── stop_orchestrator.sh   # Stop orchestrator
+│   ├── run_tests_with_progress.sh # Test runner with progress
+│   ├── check_gemini.py        # Gemini API testing script
+│   └── test_docker_compose.sh # Docker Compose test script
+├── reports/                     # Reports and analysis
+│   ├── CODE_REVIEW_REPORT.md    # Code review findings
+│   ├── TEST_PERFORMANCE_ANALYSIS.md # Test performance analysis
+│   ├── TEST_SLOW_REASONS.md    # Test optimization analysis
+│   ├── TEST_VERIFICATION_REPORT.md # Test verification report
+│   ├── OPTIMIZE_TESTS.md       # Test optimization guide
+│   ├── FIX_SUMMARY.md          # Fix summary report
+│   └── README.md               # Reports directory guide
 ├── tests/                       # Test suite
 ├── examples/                    # Example usage
 ├── logs/                        # Service logs
 ├── Makefile                     # Unified command management
-├── pyproject.toml              # Poetry configuration
+├── pyproject.toml              # Project configuration
 ├── requirements.txt            # Python dependencies
 ├── docker-compose.yml          # Docker orchestration
 ├── Dockerfile                  # Container definition
@@ -453,29 +465,36 @@ print(creatives)
 **API Endpoints:**
 - `POST /generate_strategy`: Accepts `CampaignSpec` + `ProductGroup[]` + `Creative[]`, returns `AbstractStrategy` and `PlatformStrategy[]`
 
-### Creative Service (🟡 Partially Implemented)
+### Creative Service (✅ Fully Implemented)
 
 **Business Logic:**
 1. **Copy Generation** (✅ Real):
-   - Uses Google Gemini API to generate ad copy
+   - Uses OpenAI (preferred) or Gemini (fallback) to generate ad copy
    - Creates primary text and headline
    - Supports A/B variants (at least 2 per product)
    - Uses category-based style policies
+   - JSON Mode for structured output
 
 2. **Image Prompt Generation** (✅ Real):
-   - Generates image prompts using Gemini
+   - Generates image prompts using LLM
    - Platform-specific visual styles
    - Variant-specific prompts
 
-3. **QA Validation** (✅ Real):
+3. **Image Generation** (✅ Real):
+   - Uses OpenAI DALL-E 3 (preferred) for image generation
+   - Falls back to Gemini image model if DALL-E unavailable
+   - Generates high-quality product images
+
+4. **Video Generation** (✅ Real):
+   - Supports single video generation from images (Replicate Wan 2.5)
+   - Supports multi-segment storyline-based video generation (15 seconds)
+   - Automatic video concatenation using FFmpeg
+
+5. **QA Validation** (✅ Real):
    - Text length validation (primary_text ≤ 200, headline ≤ 60)
    - Banned words filtering
    - Platform-specific rules (Meta disallows superlatives, second-person targeting)
    - Image URL validation
-
-4. **Image Generation** (🚧 Fallback):
-   - Currently uses placeholder URLs
-   - TODO: Integrate Gemini Image API or other image generation service
 
 **API Endpoints:**
 - `POST /generate_creatives`: Accepts `CampaignSpec` + `Product[]`, returns `Creative[]` with A/B variants
@@ -529,11 +548,13 @@ print(creatives)
    - ✅ Comprehensive test suite (27 tests)
 
 3. **Creative Service**:
-   - ✅ LLM-powered copy generation (Gemini)
+   - ✅ LLM-powered copy generation (OpenAI preferred, Gemini fallback)
+   - ✅ Image generation (OpenAI DALL-E 3 preferred, Gemini fallback)
+   - ✅ Video generation (Replicate Wan 2.5, storyline-based multi-segment)
    - ✅ Image prompt generation
    - ✅ QA validation module
    - ✅ A/B variant generation
-   - ✅ Fallback mechanisms
+   - ✅ Comprehensive fallback mechanisms
 
 4. **Orchestrator Agent**:
    - ✅ LLM intent parsing
@@ -543,8 +564,7 @@ print(creatives)
 
 ### 🟡 Partially Implemented Services
 
-1. **Creative Service**:
-   - 🚧 Image generation API integration (currently uses fallback URLs)
+None - All core services are fully implemented.
 
 ### 🚧 Mock Services (TODO)
 
@@ -766,11 +786,20 @@ All services use shared schemas from `app/common/schemas.py`:
 ### Testing
 
 ```bash
-# Run tests (when implemented)
-pytest
+# Run all tests
+make test
+
+# Run tests in parallel (faster)
+make test-parallel
+
+# Run fast tests only (skip slow tests)
+make test-fast
 
 # Run with coverage
-pytest --cov=app tests/
+make test-coverage
+
+# Run with progress tracking
+./scripts/run_tests_with_progress.sh
 ```
 
 ## Configuration
@@ -796,9 +825,19 @@ export META_SERVICE_URL=https://meta-service.yourdomain.com
 export LOGS_SERVICE_URL=https://logs-service.yourdomain.com
 export OPTIMIZER_SERVICE_URL=https://optimizer-service.yourdomain.com
 
-# LLM Configuration (optional, for LLM mode)
+# LLM Configuration
+# OpenAI (preferred for text and image generation)
+export OPENAI_REAL_KEY=your_openai_api_key_here
+export OPENAI_MODEL=gpt-4.1-mini
+export OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Gemini (fallback if OpenAI not available)
 export GEMINI_API_KEY=your_gemini_api_key_here
-export GEMINI_MODEL=gemini-2.0-flash-exp
+export GEMINI_MODEL=gemini-2.0-flash-lite
+export GEMINI_IMAGE_MODEL=gemini-3-pro-image-preview
+
+# Replicate (for video generation)
+export REPLICATE_API_TOKEN=your_replicate_token_here
 ```
 
 **See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed configuration guide.**
@@ -813,9 +852,16 @@ export GEMINI_MODEL=gemini-2.0-flash-exp
 | `META_SERVICE_URL` | `http://localhost:8004` | Meta service URL |
 | `LOGS_SERVICE_URL` | `http://localhost:8005` | Logs service URL |
 | `OPTIMIZER_SERVICE_URL` | `http://localhost:8007` | Optimizer service URL |
-| `GEMINI_API_KEY` | `None` | Google Gemini API key (for LLM mode) |
-| `GEMINI_MODEL` | `gemini-2.0-flash-exp` | Gemini model name |
+| `OPENAI_REAL_KEY` | `None` | OpenAI API key (for text and image generation) |
+| `OPENAI_MODEL` | `gpt-4.1-mini` | OpenAI model name |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI API base URL |
+| `GEMINI_API_KEY` | `None` | Google Gemini API key (fallback) |
+| `GEMINI_MODEL` | `gemini-2.0-flash-lite` | Gemini text model |
+| `GEMINI_IMAGE_MODEL` | `gemini-3-pro-image-preview` | Gemini image model |
+| `REPLICATE_API_TOKEN` | `None` | Replicate API token (for video generation) |
+| `REPLICATE_VIDEO_MODEL` | `wan-video/wan-2.5-i2v` | Replicate video model |
 | `ENVIRONMENT` | `development` | Environment identifier |
+| `LOG_LEVEL` | `INFO` | Logging level |
 
 ## Deployment
 
@@ -880,14 +926,19 @@ source venv/bin/activate
 
 ### LLM Mode Not Working
 
-If using LLM mode, ensure `GEMINI_API_KEY` is set:
+If using LLM mode, ensure API keys are set:
 
 ```bash
-# Check if API key is set
+# Check if API keys are set
+echo $OPENAI_REAL_KEY
 echo $GEMINI_API_KEY
 
-# Set it in .env file
-echo "GEMINI_API_KEY=your_key_here" >> .env
+# Set in .env file
+echo "OPENAI_REAL_KEY=your_openai_key_here" >> .env
+echo "GEMINI_API_KEY=your_gemini_key_here" >> .env
+
+# Test Gemini API configuration
+python scripts/check_gemini.py
 ```
 
 ## Common Commands Reference
@@ -921,9 +972,21 @@ python test_all_services.py
 
 ## Additional Documentation
 
+### User Guides
 - **[docs/QUICKSTART.md](docs/QUICKSTART.md)** - 5-minute quick start guide
 - **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** - Detailed configuration guide
-- **[LLM_ORCHESTRATOR.md](LLM_ORCHESTRATOR.md)** - LLM orchestrator documentation
+- **[docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)** - Complete API reference
+- **[docs/LLM_ORCHESTRATOR.md](docs/LLM_ORCHESTRATOR.md)** - LLM orchestrator documentation
+- **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Troubleshooting guide
+
+### Development Reports
+- **[reports/CODE_REVIEW_REPORT.md](reports/CODE_REVIEW_REPORT.md)** - Code review findings and recommendations
+- **[reports/TEST_PERFORMANCE_ANALYSIS.md](reports/TEST_PERFORMANCE_ANALYSIS.md)** - Test performance analysis
+- **[reports/OPTIMIZE_TESTS.md](reports/OPTIMIZE_TESTS.md)** - Test optimization guide
+
+### Utility Scripts
+- **scripts/check_gemini.py** - Test Gemini API configuration and calls
+- **scripts/run_tests_with_progress.sh** - Run tests with progress tracking
 
 ## Support
 
